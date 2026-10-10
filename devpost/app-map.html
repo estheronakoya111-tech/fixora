@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Fixora App Map</title>
+  <style>
+    :root { color-scheme: light; --ink:#20201e; --muted:#626863; --paper:#f7f6f2; --card:#fff; --line:#d9ddd7; --orange:#e9692d; --green:#437d62; }
+    * { box-sizing:border-box; }
+    body { margin:0; background:var(--paper); color:var(--ink); font:16px/1.6 system-ui,-apple-system,Segoe UI,sans-serif; }
+    main { max-width:980px; margin:0 auto; padding:48px 22px 72px; }
+    h1,h2 { line-height:1.15; letter-spacing:-.03em; }
+    h1 { max-width:680px; font-size:clamp(2.2rem,6vw,4.6rem); margin:0 0 16px; }
+    h2 { font-size:1.5rem; margin:42px 0 14px; }
+    p { max-width:70ch; }
+    .eyebrow { color:var(--orange); font-size:.75rem; font-weight:800; letter-spacing:.16em; text-transform:uppercase; }
+    .lede { color:var(--muted); font-size:1.1rem; max-width:650px; }
+    .panel { background:var(--card); border:1px solid var(--line); border-radius:18px; padding:20px; margin:16px 0; }
+    .diagram { overflow-x:auto; }
+    svg { display:block; min-width:700px; width:100%; height:auto; }
+    .route { display:grid; gap:12px; padding:0; list-style:none; counter-reset:route; }
+    .route li { counter-increment:route; display:grid; grid-template-columns:38px 1fr; gap:12px; align-items:start; }
+    .route li::before { content:counter(route); display:grid; place-items:center; width:32px; height:32px; border-radius:50%; background:var(--green); color:white; font-weight:800; }
+    code { background:#eef0eb; border-radius:5px; padding:.12em .35em; font-size:.9em; }
+    a { color:#286148; }
+    details { border-top:1px solid var(--line); padding:12px 0; }
+    summary { cursor:pointer; font-weight:700; }
+    .note { color:var(--muted); font-size:.94rem; }
+  </style>
+</head>
+<body>
+  <main>
+    <p class="eyebrow">Fixora · reference map</p>
+    <h1>From a confusing problem to a clear next step.</h1>
+    <p class="lede">Fixora helps a person explain a billing, payment, delivery, service, or account problem, build a reviewable complaint, and understand the company's response. This is a compact map of the current proof of concept.</p>
+
+    <section aria-labelledby="flow-title">
+      <h2 id="flow-title">One real action through the app</h2>
+      <div class="panel diagram">
+        <svg viewBox="0 0 920 250" role="img" aria-labelledby="diagram-title diagram-desc">
+          <title id="diagram-title">Case conversation flow</title>
+          <desc id="diagram-desc">The user starts a case, the client sends the conversation to a route handler, the server asks Groq, and the saved case appears in the dashboard and response views.</desc>
+          <defs><marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto"><path d="M0,0 L0,6 L9,3 z" fill="#437d62" /></marker></defs>
+          <g font-family="system-ui, sans-serif" font-size="15">
+            <rect x="20" y="78" width="170" height="84" rx="14" fill="#fff4ec" stroke="#e9692d" />
+            <text x="105" y="112" text-anchor="middle" font-weight="700">User</text><text x="105" y="137" text-anchor="middle">starts a case</text>
+            <line x1="190" y1="120" x2="270" y2="120" stroke="#437d62" stroke-width="3" marker-end="url(#arrow)" />
+            <rect x="270" y="55" width="210" height="130" rx="14" fill="#fff" stroke="#d9ddd7" />
+            <text x="375" y="88" text-anchor="middle" font-weight="700">page.tsx</text><text x="375" y="113" text-anchor="middle">Conversation + state</text><text x="375" y="138" text-anchor="middle">localStorage updates</text>
+            <line x1="480" y1="120" x2="560" y2="120" stroke="#437d62" stroke-width="3" marker-end="url(#arrow)" />
+            <rect x="560" y="55" width="160" height="130" rx="14" fill="#eef6f0" stroke="#437d62" />
+            <text x="640" y="88" text-anchor="middle" font-weight="700">Route Handler</text><text x="640" y="113" text-anchor="middle">/api/fixora</text><text x="640" y="138" text-anchor="middle">server-only key</text>
+            <line x1="720" y1="120" x2="800" y2="120" stroke="#437d62" stroke-width="3" marker-end="url(#arrow)" />
+            <rect x="800" y="78" width="100" height="84" rx="14" fill="#fff" stroke="#d9ddd7" />
+            <text x="850" y="112" text-anchor="middle" font-weight="700">Result</text><text x="850" y="137" text-anchor="middle">case views</text>
+          </g>
+        </svg>
+      </div>
+    </section>
+
+    <section aria-labelledby="route-title">
+      <h2 id="route-title">Reference route: start a conversation</h2>
+      <p class="note">Use this route in the editor while tracing the behavior. It is a reference route; it is not a claim that every stop has been toured interactively yet.</p>
+      <ol class="route">
+        <li><div><strong>Entry:</strong> <code>src/app/page.tsx</code> → <code>startConversation</code>. Creates a case and switches to the conversation screen.</div></li>
+        <li><div><strong>Conversation:</strong> <code>src/components/Conversation.tsx</code> → its submit/fetch flow calls <code>/api/fixora</code> and renders streamed assistant text.</div></li>
+        <li><div><strong>Persistence/result:</strong> <code>src/lib/storage.ts</code> → <code>upsertCase</code> saves the case; <code>Dashboard.tsx</code>, <code>Cases.tsx</code>, and <code>Replies.tsx</code> show the saved state.</div></li>
+      </ol>
+    </section>
+
+    <section aria-labelledby="change-title">
+      <h2 id="change-title">To change this, start here</h2>
+      <div class="panel">
+        <details open><summary>Change startup/loading behavior</summary><p>Start at <code>src/app/page.tsx</code> near <code>booted</code>, <code>checkingIntro</code>, and the startup status block.</p></details>
+        <details><summary>Change the conversation or questions</summary><p>Start at <code>src/components/Conversation.tsx</code> for the interaction and <code>src/lib/fixora.ts</code> for the server prompt and response validation.</p></details>
+        <details><summary>Change what is saved</summary><p>Start at <code>src/lib/types.ts</code> for shapes and <code>src/lib/storage.ts</code> for browser persistence.</p></details>
+        <details><summary>Change the complaint or reply AI tasks</summary><p>Start at <code>src/lib/fixora.ts</code>, then inspect <code>src/app/api/fixora/draft/route.ts</code> or <code>src/app/api/fixora/reply/route.ts</code>.</p></details>
+      </div>
+    </section>
+
+    <section aria-labelledby="practice-title">
+      <h2 id="practice-title">A practice to reuse</h2>
+      <p>Turn a requirement into an observable check. For example, the PRD says the case should remain outside “Waiting for response” until the user confirms sending; the implementation keeps the status transition in <code>src/app/page.tsx</code> and the case status in <code>src/lib/types.ts</code>. On another project, connect the same acceptance criterion to the state transition and then test the visible result.</p>
+    </section>
+
+    <section aria-labelledby="run-title">
+      <h2 id="run-title">Run it again</h2>
+      <p>From the project root, run <code>npm install</code> if dependencies are missing, then <code>npm run dev</code> and open <code>http://localhost:3000</code>. Production verification uses <code>npm run lint</code> and <code>npm run build</code>. The Groq-backed paths need <code>GROQ_API_KEY</code> configured in the hosting environment.</p>
+      <p class="note">Source snapshot: current working tree after the loading-indicator update. This map is a static reference and can drift as the code changes.</p>
+    </section>
+  </main>
+</body>
+</html>

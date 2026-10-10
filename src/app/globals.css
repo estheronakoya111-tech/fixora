@@ -1,26 +1,162 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
+/*
+  Fix This — Visual Design System
+  Clean, warm, premium, human, calm, trustworthy, spacious.
+  Orange is an accent for actions and attention, never the whole identity.
+  Avoid: purple AI gradients, pure black, neon, heavy shadows,
+  excessive rounding, futuristic or robotic imagery.
+*/
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
+@theme {
+  /* Surfaces */
+  --color-background: #f7f6f2;
+  --color-surface: #ffffff;
+  --color-surface-muted: #fbfaf7;
+  --color-surface-sunken: #efede7;
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+  /* Text */
+  --color-foreground: #20201e;
+  --color-muted: #6b6862;
+  --color-subtle: #a19e97;
+
+  /* Borders */
+  --color-border: #e5e3de;
+  --color-border-strong: #d2cfc7;
+
+  /* Brand orange scale */
+  --color-brand: #e86a2a;
+  --color-brand-50: #fef4ec;
+  --color-brand-100: #fde5d3;
+  --color-brand-200: #fbc9a8;
+  --color-brand-300: #f6a575;
+  --color-brand-400: #ef8444;
+  --color-brand-500: #e86a2a;
+  --color-brand-600: #d0561c;
+  --color-brand-700: #aa4517;
+  --color-brand-800: #883819;
+  --color-brand-hover: #d65d20;
+  --color-brand-strong: #c8511a;
+  --color-brand-soft: #fdeee2;
+
+  /* Status */
+  --color-positive: #5f8a6c;
+  --color-positive-strong: #46705a;
+  --color-positive-soft: #e7f0ea;
+  --color-warning: #c98a2b;
+  --color-warning-soft: #fbf1dd;
+  --color-danger: #c04a3a;
+  --color-danger-soft: #fbe9e5;
+  --color-info: #4f6f8a;
+  --color-info-soft: #e8eef3;
+
+  /* Depth tones used by the logo and 3D case hub */
+  --color-slate: #3e4a55;
+  --color-slate-deep: #272f37;
+
+  /* Fonts — Geist for headings/nav/buttons, Inter for body.
+     Variables are set by next/font in src/app/layout.tsx. */
+  --font-heading: var(--font-geist), ui-sans-serif, system-ui, sans-serif;
+  --font-body: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+
+  /* Soft, low-contrast shadows */
+  --shadow-soft: 0 1px 2px rgb(32 32 30 / 0.04), 0 1px 3px rgb(32 32 30 / 0.05);
+  --shadow-card: 0 2px 4px rgb(32 32 30 / 0.03), 0 8px 24px -8px rgb(32 32 30 / 0.08);
+  --shadow-lift: 0 4px 12px -4px rgb(32 32 30 / 0.06), 0 24px 48px -16px rgb(32 32 30 / 0.16);
+  --shadow-brand: 0 8px 24px -8px rgb(232 106 42 / 0.5);
+
+  /* Radii */
+  --radius-control: 0.75rem;
+  --radius-card: 1rem;
+  --radius-sheet: 1.5rem;
+
+  /* Motion — subtle entrances only */
+  --animate-fade-rise: fade-rise 600ms cubic-bezier(0.22, 1, 0.36, 1) both;
+
+  @keyframes fade-rise {
+    from {
+      opacity: 0;
+      transform: translateY(10px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
   }
 }
 
+html {
+  /* Smooth scrolling for in-page anchor jumps (e.g. Learn guide links);
+     overridden for users who prefer reduced motion below. */
+  scroll-behavior: smooth;
+}
+
+:root {
+  color-scheme: light;
+}
+
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background-color: var(--color-background);
+  color: var(--color-foreground);
+  font-family: var(--font-body);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  font-family: var(--font-heading);
+}
+
+::selection {
+  background-color: var(--color-brand-100);
+  color: var(--color-foreground);
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-brand);
+  outline-offset: 2px;
+}
+
+.auth-underline {
+  position: relative;
+  display: block;
+}
+
+.auth-underline::after {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  height: 3px;
+  border-bottom: 1px solid var(--color-border-strong);
+  border-radius: 0 0 50% 50%;
+  content: "";
+  pointer-events: none;
+  transition: border-color 220ms ease;
+}
+
+.auth-underline:focus-within::after {
+  border-bottom-color: var(--color-brand);
+}
+
+.auth-panel input:focus,
+.auth-panel input:focus-visible {
+  outline: none;
+  box-shadow: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }

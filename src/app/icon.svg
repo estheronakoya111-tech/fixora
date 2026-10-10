@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 92 106" fill="none">
+  <defs>
+    <linearGradient id="top" x1="0" y1="0" x2="0" y2="1">
+      <stop stop-color="#FFB98A" />
+      <stop offset="1" stop-color="#F58A4C" />
+    </linearGradient>
+    <linearGradient id="face" x1="10" y1="10" x2="74" y2="100" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#F47C3D" />
+      <stop offset="1" stop-color="#DC5C1E" />
+    </linearGradient>
+    <linearGradient id="side" x1="34" y1="2" x2="84" y2="92" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#B9531B" />
+      <stop offset="1" stop-color="#6F2D0F" />
+    </linearGradient>
+    <linearGradient id="sheen" x1="10" y1="10" x2="74" y2="78" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#fff" stop-opacity=".34" />
+      <stop offset=".55" stop-color="#fff" stop-opacity="0" />
+    </linearGradient>
+  </defs>
+  <ellipse cx="34" cy="102" rx="26" ry="2.6" fill="#3E4A55" fill-opacity=".16" />
+  <g stroke-linejoin="round" stroke-width="1.4">
+    <path d="M20 2h64v24H44v10h30v18H44v38H20z" fill="url(#side)" stroke="url(#side)" />
+    <path d="M10 10h64l10-8H20z" fill="url(#top)" stroke="url(#top)" />
+    <path d="M34 44h30l10-8H44z" fill="url(#top)" stroke="url(#top)" />
+    <path d="M74 10v24l10-8V2zM34 34v10l10-8V26zM64 44v18l10-8V36zM34 62v38l10-8V54z" fill="url(#side)" stroke="url(#side)" />
+    <path d="M10 10h64v24H34v10h30v18H34v38H10z" fill="url(#face)" stroke="url(#face)" />
+  </g>
+  <path d="M10 10h64v24H34v10h30v18H34v38H10z" fill="url(#sheen)" />
+  <path d="M11.5 98.5v-87H72.5" stroke="#fff" stroke-opacity=".4" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" />
+</svg>

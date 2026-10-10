@@ -32,6 +32,16 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
+!.env.example
+
+# personal learning context
+/devpost/learner-profile.md
+
+# local tool metadata
+/.freebuff/
+/.claude/
+/.agents/
+/agent/
 
 # vercel
 .vercel
