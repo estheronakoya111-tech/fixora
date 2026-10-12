@@ -280,7 +280,7 @@ export default function Conversation({ initialStory, initialMessages, initialDet
   const fade = reduce ? {} : { initial: { opacity: 0, y: 10 }, animate: { opacity: 1, y: 0 }, transition: { duration: 0.3, ease: "easeOut" as const } };
 
   return (
-    <div className="relative flex min-h-dvh flex-col bg-background text-foreground">
+    <div className="relative flex min-h-dvh flex-col text-foreground">
       <div aria-hidden className="pointer-events-none fixed -right-24 -top-24 h-96 w-96 rounded-full bg-brand-100/60 blur-3xl" />
 
       <header className="sticky top-0 z-30 bg-background/80 backdrop-blur-md">
@@ -355,7 +355,7 @@ export default function Conversation({ initialStory, initialMessages, initialDet
         )}
       </AnimatePresence>
 
-      <main className="relative z-10 mx-auto flex w-full max-w-3xl flex-1 flex-col px-5 pb-6" aria-live="polite">
+      <main className="relative z-10 mx-auto flex w-full max-w-4xl flex-1 flex-col px-5 pb-6" aria-live="polite">
         {empty ? (
           <motion.div {...fade} className="flex flex-1 flex-col items-center justify-center py-16 text-center">
             <span className="flex h-12 w-12 items-center justify-center overflow-hidden rounded-2xl bg-surface shadow-lift"><FixoraMark className="scale-110" /></span>
@@ -555,7 +555,7 @@ export default function Conversation({ initialStory, initialMessages, initialDet
             </div>
           )}
         </div>
+        </div>
       </div>
-    </div>
   );
 }

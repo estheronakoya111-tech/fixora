@@ -105,7 +105,7 @@ export default function Replies({ cases, onStartCase, onOpenCase, onSaveReply, o
   }
 
   return (
-    <main className="min-h-dvh w-full px-5 pb-28 pt-4 text-foreground md:px-8 md:pb-12">
+    <main className="mx-auto min-h-dvh w-full max-w-7xl px-5 pb-28 pt-4 text-foreground md:px-8 md:pb-12">
       <header className="mb-9 flex flex-wrap items-end justify-between gap-4">
         <div>
           <p className="text-xs font-semibold uppercase tracking-[0.16em] text-brand-strong">Case updates</p>
@@ -228,5 +228,6 @@ export default function Replies({ cases, onStartCase, onOpenCase, onSaveReply, o
         <p className="mt-4 text-xs text-muted">This explanation may be wrong and isn&apos;t legal advice. Check it against what the company wrote.</p>
       </>}
     </main>
+
   );
 }

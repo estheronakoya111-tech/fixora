@@ -171,7 +171,7 @@ function Preview({ blocks, focus }: { blocks: Block[]; focus: string }) {
 
 export default function Learn({ onGo }: LearnProps) {
   return (
-    <div className="min-h-dvh bg-background text-foreground">
+    <div className="min-h-dvh text-foreground">
       {/* Header */}
       <header className="sticky top-0 z-10 flex items-center gap-3 bg-background/90 px-5 py-3 backdrop-blur md:px-8">
         <h1 className="font-heading text-lg font-semibold tracking-tight md:text-xl">Learn Fixora</h1>

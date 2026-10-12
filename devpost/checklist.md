@@ -60,14 +60,14 @@ Build mode: learn
 
 ## Code Tour and App Map
 
-- [ ] Learning activity complete — guided route, focused alternative, prior practice connected, or brief recap
-- [ ] Optional edit and transfer reflection addressed — offered/declined/already covered/not applicable as appropriate
+- [x] Learning activity complete — guided route, focused alternative, prior practice connected, or brief recap
+- [x] Optional edit and transfer reflection addressed — offered/declined/already covered/not applicable as appropriate
 - [x] `devpost/app-map.html` generated from finished code, checked, and shown, including a project-grounded practice to reuse
 
 Activity and evidence: Learner ran `npm run dev`, completed the final hands-on pass through the core journey and response flow, and confirmed everything tested correctly. Mechanical verification passed with `npx tsc --noEmit`, `npm run lint` (four existing warnings, zero errors), `npm run build`, and `git diff --check`. The finished-code map is `devpost/app-map.html`.
 Route and stops: Reference route in `devpost/app-map.html`: `src/app/page.tsx` → `src/components/Conversation.tsx` → `src/lib/storage.ts` → `src/components/Case.tsx` → `src/components/Replies.tsx`.
 Edit outcome: Intro copy, response routing, button contrast, loading state, and confirmation dialogs were kept after verification.
-Reflection: Not yet recorded; optional transfer reflection remains.
+Reflection: Reuse going through what the AI agent said properly and thoroughly before accepting it (learner's own words).
 Activity mode: Live app and editor, plus a concise code-tour recap.
 
 ## Revisions

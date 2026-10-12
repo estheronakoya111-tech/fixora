@@ -16,7 +16,7 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "Fix This",
+  title: "Fixora",
   description:
     "Make sense of billing or payment problems, build a clear case, and decide what to do next.",
 };

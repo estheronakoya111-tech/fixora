@@ -166,7 +166,7 @@ export default function Cases({
   }, [query, items]);
 
   return (
-    <div className="min-h-dvh bg-background text-foreground">
+    <div className="min-h-dvh text-foreground">
       <div className="min-w-0 flex-1">
         <header className="flex items-center gap-3 px-5 py-4 md:px-8 md:py-5">
           <div className="md:hidden">
@@ -188,7 +188,7 @@ export default function Cases({
           <SearchPopup query={query} matches={searchMatches.slice(0, 6)} total={searchMatches.length} onQuery={setQuery} onPick={onOpenCase} />
         </div>
 
-        <main className="px-5 pb-28 pt-4 md:px-8 md:pb-12">
+        <main className="mx-auto w-full max-w-7xl px-5 pb-28 pt-4 md:px-8 md:pb-12">
           <h1 className="font-heading text-3xl font-semibold tracking-tight">Cases</h1>
           <p className="mt-1 text-base text-muted">
             {active} active · {counts.needs} {counts.needs === 1 ? "needs" : "need"} you
@@ -210,13 +210,28 @@ export default function Cases({
                 </button>
               ))}
             </div>
-            <label className="flex items-center gap-2 text-sm text-muted">
-              Sort
-              <select value={sort} onChange={(e) => setSort(e.target.value as Sort)} className="rounded-lg bg-surface px-3 py-2 text-sm font-medium text-foreground shadow-soft outline-none focus-visible:ring-2 focus-visible:ring-brand/30">
-                <option value="needs">Needs you first</option>
-                <option value="newest">Newest first</option>
-                <option value="oldest">Oldest first</option>
-              </select>
+            <label className="group flex min-w-0 items-center gap-2 text-sm text-muted">
+              <span className="shrink-0 font-medium">Sort by</span>
+              <span className="relative min-w-0">
+                <select
+                  value={sort}
+                  onChange={(e) => setSort(e.target.value as Sort)}
+                  aria-label="Sort cases"
+                  className="w-full min-w-[9.5rem] appearance-none rounded-xl border border-border-strong bg-surface py-2.5 pl-3.5 pr-9 text-sm font-semibold text-foreground shadow-soft outline-none transition-colors hover:border-brand/50 focus:border-brand focus:ring-4 focus:ring-brand/10 sm:min-w-[10.5rem]"
+                >
+                  <option value="needs">Needs you first</option>
+                  <option value="newest">Newest first</option>
+                  <option value="oldest">Oldest first</option>
+                </select>
+                <svg
+                  viewBox="0 0 16 16"
+                  fill="none"
+                  aria-hidden
+                  className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted transition-colors group-hover:text-brand-strong"
+                >
+                  <path d="m4 6 4 4 4-4" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              </span>
             </label>
           </div>
 

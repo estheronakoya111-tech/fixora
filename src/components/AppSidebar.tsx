@@ -1,5 +1,6 @@
 "use client";
 
+import { motion, useReducedMotion } from "framer-motion";
 import { FixoraLogo } from "@/components/logo/FixoraLogo";
 
 type AppSidebarProps = {
@@ -29,13 +30,25 @@ function Icon({ path }: { path: string }) {
 }
 
 export default function AppSidebar({ active, onHome, onCases, onReplies, onLearn, onLogout, repliesAttentionCount = 0 }: AppSidebarProps) {
+  const reduce = useReducedMotion();
+
   return (
     <>
-      <aside className="fixed inset-y-0 left-0 z-40 hidden w-56 flex-col gap-1 overflow-y-auto bg-background px-4 py-6 md:flex">
-        <div className="mb-8 px-2"><FixoraLogo size="md" /></div>
+      <motion.aside
+        initial={reduce ? false : { x: -24, opacity: 0 }}
+        animate={{ x: 0, opacity: 1 }}
+        transition={{ type: "spring", stiffness: 280, damping: 28, delay: 0.08 }}
+        className="fixed inset-y-0 left-0 z-40 hidden w-56 flex-col gap-1 overflow-y-auto border-r-0 px-4 py-6 md:flex"
+      >
+        <motion.div
+          initial={reduce ? false : { y: -8, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          transition={{ duration: 0.35, delay: 0.18 }}
+          className="mb-8 px-2"
+        ><FixoraLogo size="md" /></motion.div>
         <Navigation active={active} onHome={onHome} onCases={onCases} onReplies={onReplies} onLearn={onLearn} onLogout={onLogout} repliesAttentionCount={repliesAttentionCount} />
-      </aside>
-      <nav aria-label="Primary" className="fixed inset-x-0 bottom-0 z-50 flex justify-around bg-background px-2 py-2 md:hidden">
+      </motion.aside>
+      <nav aria-label="Primary" className="fixed inset-x-0 bottom-0 z-50 flex justify-around border-t-0 px-1 py-2 backdrop-blur md:hidden">
         <Navigation active={active} onHome={onHome} onCases={onCases} onReplies={onReplies} onLearn={onLearn} onLogout={onLogout} repliesAttentionCount={repliesAttentionCount} compact />
       </nav>
     </>
@@ -52,8 +65,9 @@ function Navigation({
   repliesAttentionCount = 0,
   compact = false,
 }: AppSidebarProps & { compact?: boolean }) {
+  const reduce = useReducedMotion();
   return (
-    <div className={compact ? "flex w-full justify-around" : "flex flex-col gap-1"}>
+    <div className={compact ? "flex w-full justify-around gap-1" : "flex flex-col gap-1"}>
       {ITEMS.map((item) => {
         const selected =
           (item.action === "home" && active === "dashboard") ||
@@ -61,7 +75,7 @@ function Navigation({
           (item.action === "replies" && active === "replies") ||
           (item.action === "learn" && active === "learn");
         const className = compact
-          ? `relative flex flex-col items-center gap-0.5 rounded-xl px-4 py-1.5 text-xs font-medium ${selected ? "text-brand-strong" : "text-muted"}`
+          ? `relative flex min-w-0 flex-1 flex-col items-center gap-0.5 rounded-xl px-1.5 py-1.5 text-[11px] font-medium ${selected ? "text-brand-strong" : "text-muted"}`
           : `relative flex items-center justify-between rounded-xl px-3 py-2.5 font-heading text-sm font-medium transition-colors ${selected ? "bg-surface text-foreground shadow-soft" : "text-muted hover:bg-surface/70 hover:text-foreground"}`;
 
         const handler =
@@ -74,12 +88,17 @@ function Navigation({
         const hasBadge = item.action === "replies" && repliesAttentionCount > 0;
 
         return (
-          <button
+          <motion.button
             key={item.label}
             type="button"
             aria-current={selected ? "page" : undefined}
             onClick={handler}
             className={className}
+            initial={reduce || compact ? false : { x: -10, opacity: 0 }}
+            animate={{ x: 0, opacity: 1 }}
+            transition={{ type: "spring", stiffness: 300, damping: 24, delay: compact ? 0 : 0.18 + ITEMS.indexOf(item) * 0.055 }}
+            whileHover={reduce || compact ? undefined : { x: 4, scale: 1.015 }}
+            whileTap={reduce ? undefined : { scale: 0.98 }}
           >
             <span className="flex items-center gap-3">
               <span className="relative">
@@ -95,7 +114,7 @@ function Navigation({
                 {repliesAttentionCount}
               </span>
             )}
-          </button>
+          </motion.button>
         );
       })}
     </div>

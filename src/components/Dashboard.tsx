@@ -181,11 +181,13 @@ export default function Dashboard({
   }, [cases, query]);
   const selectedCase = visibleCases[0] ?? null;
   const activePhase = selectedCase?.status === "in-progress" ? 0 : selectedCase?.status === "ready-to-send" ? 2 : selectedCase ? 3 : 0;
+  const actionCount = cases.filter((item) => ["in-progress", "ready-to-send", "response-needs-attention"].includes(item.status)).length;
+  const evidenceCount = cases.reduce((total, item) => total + item.evidenceFiles.length, 0);
   const stats = [
-    { label: "Your cases", value: cases.length },
-    { label: "Needs you", value: cases.filter((item) => ["in-progress", "ready-to-send", "response-needs-attention"].includes(item.status)).length },
-    { label: "Waiting for reply", value: cases.filter((item) => item.status === "waiting-for-response").length },
-    { label: "Replies reviewed", value: cases.filter((item) => item.status === "response-reviewed").length },
+    { label: "All cases", value: cases.length, detail: cases.length === 1 ? "1 case in your workspace" : "Saved in your workspace", accent: "bg-brand" },
+    { label: "Needs your input", value: actionCount, detail: actionCount ? "Your next move is ready" : "Nothing waiting on you", accent: "bg-brand" },
+    { label: "In follow-up", value: cases.filter((item) => item.status === "waiting-for-response").length, detail: "Waiting for company replies", accent: "bg-positive" },
+    { label: "Evidence saved", value: evidenceCount, detail: evidenceCount ? "Files attached to cases" : "Add proof when you have it", accent: "bg-foreground" },
   ];
   const activity = visibleCases.slice(0, 3).map((item) => ({
     id: item.id,
@@ -210,6 +212,11 @@ export default function Dashboard({
         ? "View case"
         : "Open case";
   const openCase = (id: string) => (onViewCase ?? onOpenCase)(id);
+  const selectedUpdated = selectedCase
+    ? new Date(selectedCase.updatedAt ?? selectedCase.createdAt).toLocaleDateString(undefined, { month: "short", day: "numeric" })
+    : null;
+  const selectedEvidence = selectedCase?.evidenceFiles.length ?? 0;
+  const selectedMessages = selectedCase?.conversation?.length ?? 0;
   const searchMatches = useMemo<SearchMatch[]>(() => {
     const normalized = query.trim().toLowerCase();
     if (!normalized) return [];
@@ -227,7 +234,7 @@ export default function Dashboard({
   }, [cases, query]);
 
   return (
-    <div className="min-h-dvh bg-background text-foreground">
+    <div className="min-h-dvh text-foreground">
       <div className="min-w-0 flex-1">
         <header className="flex items-center gap-3 px-5 py-4 md:px-8 md:py-5">
           <div className="md:hidden">
@@ -251,8 +258,17 @@ export default function Dashboard({
           <SearchPopup query={query} matches={searchMatches} total={visibleCases.length} onQuery={setQuery} onPick={openCase} />
         </div>
 
-        <main className="px-5 pb-28 pt-4 md:px-8 md:pb-12">
-          <h1 className="font-heading text-3xl font-semibold tracking-tight">Hey {firstName}.</h1>
+        <main className="mx-auto w-full max-w-7xl px-5 pb-28 pt-4 md:px-8 md:pb-12">
+          <div className="flex flex-wrap items-end justify-between gap-4">
+            <div>
+              <p className="font-body text-[11px] font-semibold uppercase tracking-[0.18em] text-positive-strong">Your case workspace</p>
+              <h1 className="mt-2 font-heading text-3xl font-semibold tracking-tight sm:text-4xl">Hey {firstName}.</h1>
+            </div>
+            <div className="hidden items-center gap-3 rounded-2xl border border-border bg-surface px-4 py-3 shadow-soft sm:flex">
+              <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-positive-soft text-positive-strong" aria-hidden>✓</span>
+              <div><p className="text-xs font-semibold text-foreground">Progress is saved</p><p className="mt-0.5 text-xs text-muted">Only you decide what gets sent.</p></div>
+            </div>
+          </div>
           <p className="mt-1 text-base text-muted">{cases.length ? "Here’s where your cases stand." : "Start a case to get a clear next step."}</p>
 
           <Reveal className="mt-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
@@ -262,18 +278,20 @@ export default function Dashboard({
                 initial={reduceMotion ? false : { opacity: 0, y: 12 }}
                 animate={reduceMotion ? undefined : { opacity: 1, y: 0 }}
                 transition={{ duration: 0.4, delay: i * 0.06, ease: "easeOut" }}
-                className="rounded-2xl bg-surface p-4 shadow-card"
+                whileHover={reduceMotion ? undefined : { y: -3 }}
+                className="group relative overflow-hidden rounded-2xl border border-border/70 bg-surface p-4 shadow-card"
               >
-                <p className="text-xs text-muted">
-                  {s.label}
-                </p>
-                <p className="mt-2 font-heading text-2xl font-semibold">{s.value}</p>
+                <span className={`absolute inset-x-0 top-0 h-1 ${s.accent}`} />
+                <div className="flex items-start justify-between gap-3"><p className="text-xs font-medium text-muted">{s.label}</p><span className={`mt-0.5 h-2 w-2 rounded-full ${s.accent} transition-transform duration-300 group-hover:scale-150`} /></div>
+                <p className="mt-3 font-heading text-3xl font-semibold tracking-tight">{s.value}</p>
+                <p className="mt-1 truncate text-xs text-muted">{s.detail}</p>
               </motion.div>
             ))}
           </Reveal>
 
           <Reveal className="mt-6 grid gap-4 lg:grid-cols-[1fr_280px]">
-            <section aria-labelledby="hub" className="overflow-hidden rounded-3xl bg-surface p-5 shadow-lift sm:p-6">
+            <section aria-labelledby="hub" className="relative overflow-hidden rounded-3xl border border-border/70 bg-surface p-5 shadow-lift sm:p-6">
+              <div aria-hidden className="absolute -right-16 -top-16 h-40 w-40 rounded-full bg-brand-soft/70 blur-3xl" />
               <div className="flex items-start justify-between gap-4">
                 <div className="min-w-0">
                   <h2 id="hub" className="truncate font-heading text-lg font-semibold">{selectedCase?.company ?? (selectedCase ? "Company to confirm" : "Your case journey" )}{selectedCase?.details?.amount ? " · " + selectedCase.details.amount : ""}</h2>
@@ -281,24 +299,31 @@ export default function Dashboard({
                 </div>
                 {selectedCase && <Badge status={selectedCase.status} />}
               </div>
+              {selectedCase && (
+                <div className="relative mt-4 flex flex-wrap gap-2 text-xs text-muted">
+                  <span className="rounded-full bg-surface-sunken px-3 py-1.5">{selectedEvidence} evidence item{selectedEvidence === 1 ? "" : "s"}</span>
+                  <span className="rounded-full bg-surface-sunken px-3 py-1.5">{selectedMessages} conversation note{selectedMessages === 1 ? "" : "s"}</span>
+                  <span className="rounded-full bg-surface-sunken px-3 py-1.5">Updated {selectedUpdated}</span>
+                </div>
+              )}
               <Hub active={activePhase} />
             </section>
 
             <div className="flex flex-col gap-4">
-              <section aria-labelledby="next" className="rounded-3xl bg-surface p-5 shadow-card">
-                <h2 id="next" className="font-heading text-sm font-semibold text-muted">
+              <section aria-labelledby="next" className="rounded-3xl bg-foreground p-5 text-white shadow-lift">
+                <h2 id="next" className="font-heading text-sm font-semibold text-white/65">
                   Next step
                 </h2>
                 <p className="mt-2 font-heading text-lg font-semibold leading-snug">{selectedCase ? nextStep : "Start your first complaint."}</p>
-                <p className="mt-1 text-sm text-muted">{selectedCase ? "Your progress is saved in this browser." : "Your cases will be saved in this browser."}</p>
-                <button type="button" onClick={() => selectedCase ? onOpenCase(selectedCase.id) : onStartCase?.()} className={`${BTN3D} mt-5 w-full`}>
+                <p className="mt-1 text-sm text-white/65">{selectedCase ? "Your progress is saved in this browser." : "Your cases will be saved in this browser."}</p>
+                <button type="button" onClick={() => selectedCase ? openCase(selectedCase.id) : onStartCase?.()} className={`${BTN3D} mt-5 w-full`}>
                   {selectedCase ? nextAction : "Start a case"}
                   <span aria-hidden className="transition-transform group-hover:translate-x-0.5">
                     →
                   </span>
                 </button>
               </section>
-              <section aria-labelledby="deadlines" className="rounded-3xl bg-surface p-5 shadow-card">
+              <section aria-labelledby="deadlines" className="rounded-3xl border border-border/70 bg-surface p-5 shadow-card">
                 <h2 id="deadlines" className="font-heading text-sm font-semibold text-muted">
                   What to expect
                 </h2>
@@ -320,6 +345,7 @@ export default function Dashboard({
                     <th className="px-5 py-3 font-medium">Company</th>
                     <th className="hidden px-5 py-3 font-medium sm:table-cell">Issue</th>
                     <th className="px-5 py-3 font-medium">Status</th>
+                    <th className="hidden px-5 py-3 font-medium lg:table-cell">Updated</th>
                     <th className="px-5 py-3 text-right font-medium">Amount</th>
                   </tr>
                 </thead>
@@ -333,15 +359,16 @@ export default function Dashboard({
                       <td className="px-5 py-4">
                         <Badge status={c.status} />
                       </td>
+                      <td className="hidden px-5 py-4 text-muted lg:table-cell">{new Date(c.updatedAt ?? c.createdAt).toLocaleDateString(undefined, { month: "short", day: "numeric" })}</td>
                       <td className="px-5 py-4 text-right">{c.details?.amount ?? "—"}</td>
                     </tr>
                   ))}
                   {!visibleCases.length && (
-                    <tr><td colSpan={4} className="px-5 py-10 text-center text-sm text-muted">{cases.length ? "No cases match your search." : "Your cases will appear here after you start one."}</td></tr>
+                    <tr><td colSpan={5} className="px-5 py-10 text-center text-sm text-muted">{cases.length ? "No cases match your search." : "Your cases will appear here after you start one."}</td></tr>
                   )}
                   {visibleCases.length > MAX_HOME_CASES && (
                     <tr>
-                      <td colSpan={4} className="px-5 py-3 text-center">
+                      <td colSpan={5} className="px-5 py-3 text-center">
                         <button type="button" onClick={onCases} className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium text-brand-strong transition-colors hover:bg-brand-soft focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand">
                           See more cases
                           <span aria-hidden>→</span>
@@ -374,7 +401,6 @@ export default function Dashboard({
           </section></Reveal>
         </main>
       </div>
-
     </div>
   );
 }
