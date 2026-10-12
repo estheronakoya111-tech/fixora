@@ -42,6 +42,7 @@ Docs: [Next.js Client and Server Components](https://nextjs.org/docs/app/getting
 - Add `GROQ_API_KEY` (and optionally `GROQ_MODEL`) to the ignored local `.env.local` file. Never prefix them with `NEXT_PUBLIC_` or commit them. Restart the dev server after changes.
 - Start with `npm run dev`, then open `http://localhost:3000`.
 - The submission still needs a short demo video and public GitHub repository. Local use is enough to record the video; deployment is optional.
+- Public repository: https://github.com/estheronakoya111-tech/fixora (published 2026-10-12; verified publicly readable).
 - Use fictional billing details in the recording. Case stories and reply text used for AI assistance are sent to Groq; profile details, passwords, and selected file contents are not.
 
 ## Look and Feel
