@@ -97,7 +97,11 @@ function StandingPanel() {
   });
 
   const startTilt = lite ? 35 : 58;
-  const tilt = useTransform(scrollYProgress, [0, 0.85], [startTilt, -3], { ease: easeMove });
+  // Phones land flat instead of resting at a slight -3°: a resting 3D
+  // rotation rasterizes the panel off-axis and its text reads blurred on
+  // small screens, in both scroll directions. Desktop keeps the subtle
+  // lean-back settle.
+  const tilt = useTransform(scrollYProgress, [0, 0.85], [startTilt, lite ? 0 : -3], { ease: easeMove });
   const settle = useSpring(tilt, { stiffness: 160, damping: 16, mass: 0.7 }); // overshoot past 0, then rest
   const glare = useTransform(scrollYProgress, [0, 0.55], [0.5, 0]); // table-glare fades as it stands
   const opacity = useTransform(scrollYProgress, [0, 0.15], [0.35, 1]);
@@ -115,6 +119,9 @@ function StandingPanel() {
 
   return (
     <div ref={ref} className="[perspective:1600px] [perspective-origin:50%_100%]">
+      {/* No will-change on phones: keeping the panel on its own compositor
+          layer there rasterizes text softer (blurred) for no gain — the
+          panel rests flat now. */}
       <motion.div
         onPointerMove={(e) => {
           if (reduce || lite || e.pointerType !== "mouse") return;
@@ -137,7 +144,7 @@ function StandingPanel() {
                 rotateY: cursorY,
               }
         }
-        className="relative will-change-transform"
+        className={`relative ${reduce || lite ? "" : "will-change-transform"}`}
       >
         <div className="overflow-hidden rounded-[2rem] border border-border bg-surface shadow-lift">
           <div className="flex items-center justify-between border-b border-border bg-surface-sunken px-5 py-4 sm:px-7"><div className="flex gap-1.5"><span className="h-2.5 w-2.5 rounded-full bg-brand/70" /><span className="h-2.5 w-2.5 rounded-full bg-positive/70" /><span className="h-2.5 w-2.5 rounded-full bg-border" /></div><span className="font-body text-[10px] font-semibold uppercase tracking-[0.16em] text-subtle">Your Fixora case</span><span className="w-11" /></div>
@@ -245,7 +252,7 @@ export default function CasePreview() {
                 transformOrigin: "50% 100%",
               }
         }
-        className="relative bg-background px-6 py-20 will-change-transform lg:px-12 lg:py-28"
+        className={`relative bg-background px-6 py-20 lg:px-12 lg:py-28 ${reduce || compact ? "" : "will-change-transform"}`}
       >
       <div className="mx-auto grid max-w-7xl items-center gap-14 lg:grid-cols-[0.72fr_1.28fr] lg:gap-20">
         <div>
@@ -255,7 +262,7 @@ export default function CasePreview() {
         </div>
 
         <div ref={letterRef} className="relative">
-          <motion.div style={reduce || compact ? undefined : { y: letterLift }} className="relative will-change-transform">
+          <motion.div style={reduce || compact ? undefined : { y: letterLift }} className={`relative ${reduce || compact ? "" : "will-change-transform"}`}>
             <StandingPanel />
           </motion.div>
         </div>

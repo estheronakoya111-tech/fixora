@@ -376,7 +376,7 @@ export default function Page() {
           repliesAttentionCount={repliesAttentionCount}
         />
       )}
-      <div className={screen === "auth" ? "" : "pb-16 md:ml-56 md:pb-0"}>
+      <div className={screen === "auth" ? "" : "pb-[calc(5.75rem+env(safe-area-inset-bottom))] md:ml-56 md:pb-0"}>
         <ConfirmDialog
           open={confirmDialog !== null}
           title={confirmDialog?.kind === "delete" ? "Delete this case?" : "Sign out of Fixora?"}

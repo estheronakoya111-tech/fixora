@@ -48,8 +48,18 @@ export default function AppSidebar({ active, onHome, onCases, onReplies, onLearn
         ><FixoraLogo size="md" /></motion.div>
         <Navigation active={active} onHome={onHome} onCases={onCases} onReplies={onReplies} onLearn={onLearn} onLogout={onLogout} repliesAttentionCount={repliesAttentionCount} />
       </motion.aside>
-      <nav aria-label="Primary" className="fixed inset-x-0 bottom-0 z-50 flex justify-around border-t-0 px-1 py-2 backdrop-blur md:hidden">
-        <Navigation active={active} onHome={onHome} onCases={onCases} onReplies={onReplies} onLearn={onLearn} onLogout={onLogout} repliesAttentionCount={repliesAttentionCount} compact />
+      {/* Phones: a floating pill bar instead of a crammed full-width strip.
+          Inactive tabs go icon-only (labels stay in the accessibility tree
+          via sr-only), the active tab gets a soft highlight, and a safe-area
+          inset keeps it clear of the home indicator. */}
+      <nav
+        aria-label="Primary"
+        className="fixed inset-x-0 bottom-0 z-50 px-3 md:hidden"
+        style={{ paddingBottom: "max(env(safe-area-inset-bottom), 0.75rem)" }}
+      >
+        <div className="flex items-center justify-around gap-0.5 rounded-2xl border border-border bg-surface/90 px-2 py-1.5 shadow-lift backdrop-blur-lg">
+          <Navigation active={active} onHome={onHome} onCases={onCases} onReplies={onReplies} onLearn={onLearn} onLogout={onLogout} repliesAttentionCount={repliesAttentionCount} compact />
+        </div>
       </nav>
     </>
   );
@@ -75,7 +85,7 @@ function Navigation({
           (item.action === "replies" && active === "replies") ||
           (item.action === "learn" && active === "learn");
         const className = compact
-          ? `relative flex min-w-0 flex-1 flex-col items-center gap-0.5 rounded-xl px-1.5 py-1.5 text-[11px] font-medium ${selected ? "text-brand-strong" : "text-muted"}`
+          ? `relative flex min-w-0 flex-1 flex-col items-center gap-0.5 rounded-xl px-1 py-2 text-[10px] font-semibold transition-colors ${selected ? "bg-brand-soft text-brand-strong" : "text-muted"}`
           : `relative flex items-center justify-between rounded-xl px-3 py-2.5 font-heading text-sm font-medium transition-colors ${selected ? "bg-surface text-foreground shadow-soft" : "text-muted hover:bg-surface/70 hover:text-foreground"}`;
 
         const handler =
@@ -100,14 +110,14 @@ function Navigation({
             whileHover={reduce || compact ? undefined : { x: 4, scale: 1.015 }}
             whileTap={reduce ? undefined : { scale: 0.98 }}
           >
-            <span className="flex items-center gap-3">
+            <span className={compact ? "flex items-center gap-1.5" : "flex items-center gap-3"}>
               <span className="relative">
                 <Icon path={item.icon} />
                 {compact && hasBadge && (
                   <span className="absolute -right-1 -top-1 h-2 w-2 rounded-full bg-brand" />
                 )}
               </span>
-              <span>{item.label}</span>
+              <span className={compact && !selected ? "sr-only" : ""}>{item.label}</span>
             </span>
             {!compact && hasBadge && (
               <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-brand px-1.5 text-[11px] font-bold text-white shadow-xs">
