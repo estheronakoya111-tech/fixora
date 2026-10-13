@@ -37,7 +37,7 @@ export default function Intro({ onContinue }: { onContinue?: (payload: IntroPayl
       {/* The paper sheet */}
       <div
         ref={sheetRef}
-        className="relative z-10 min-h-dvh rounded-t-[2.5rem] bg-background shadow-[0_-24px_60px_-20px_rgb(0_0_0_/_0.35)] lg:rounded-t-[3.5rem]"
+        className="relative z-10 min-h-dvh overflow-x-clip rounded-t-[2.5rem] bg-background shadow-[0_-24px_60px_-20px_rgb(0_0_0_/_0.35)] lg:rounded-t-[3.5rem]"
       >
         <HowItWorks />
         <CasePreview />

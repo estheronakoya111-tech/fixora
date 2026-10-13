@@ -194,30 +194,45 @@ export default function CasePreview() {
   const { scrollYProgress } = useScroll({ target: letterRef, offset: ["start end", "end start"] });
   const letterLift = useTransform(scrollYProgress, [0.3, 0.7], [0, -60], { ease: easeMove });
 
-  // Page turn: while the section travels from below the viewport to its
-  // parked position, it rotates up from a hinge at its bottom edge — like a
-  // page flipping up over the dark deck behind it. It lands level as it
-  // reaches the viewport top. Scroll-linked and reversible; reduced motion
-  // gets the plain section.
+  // Lid open: while the section travels from below the viewport to its
+  // parked position, the whole content — text column and panel together —
+  // stands up from a hinge at its bottom edge, like a MacBook lid opening,
+  // with the surface sheen sliding off and the floor shadow tightening as it
+  // rises. It lands level as it reaches the viewport top. Scroll-linked and
+  // reversible; reduced motion and compact layouts get the plain section.
   const { scrollYProgress: flip } = useScroll({
     target: sectionRef,
     offset: ["start end", "start start"],
   });
   const flipSpan = [0.05, 0.7];
-  const flipTilt = useTransform(flip, flipSpan, [-10, 0], { ease: easeMove });
-  const flipLift = useTransform(flip, flipSpan, ["8vh", "0vh"], { ease: easeMove });
+  const flipTilt = useTransform(flip, flipSpan, [24, 0], { ease: easeMove });
+  const flipLift = useTransform(flip, flipSpan, ["6vh", "0vh"], { ease: easeMove });
+  const flipOpacity = useTransform(flip, [0, 0.2], [0.4, 1]);
   const flipShadow = useTransform(
     flip,
     flipSpan,
     [
-      "0 -30px 60px -20px rgba(20,20,18,0.45)",
+      "0 -40px 80px -20px rgba(20,20,18,0.5)",
       "0 0px 0px rgba(20,20,18,0)",
     ],
     { ease: easeMove },
   );
+  // Surface sheen sliding down while the lid is still lying back, mirroring
+  // the complaint-draft panel's glare.
+  const flipGlare = useTransform(flip, [0, 0.55], [0.5, 0], { ease: easeMove });
+
+  // Handoff to the dark closer: as the closing CTA rises over from below,
+  // the page dims out like the lights going down for the finale. This bridges
+  // the white → dark seam — HowItWorks does the same to this section — so the
+  // sections read as one continuous chain. Scroll-linked and reversible.
+  const { scrollYProgress: exitProgress } = useScroll({
+    target: sectionRef,
+    offset: ["end end", "end 40%"],
+  });
+  const exitDim = useTransform(exitProgress, [0.35, 1], [0, 0.4], { ease: easeMove });
 
   return (
-    <section ref={sectionRef} className="bg-background [perspective:1400px]">
+    <section ref={sectionRef} className="relative bg-background [perspective:1400px]">
       <motion.div
         style={
           reduce || compact
@@ -225,11 +240,12 @@ export default function CasePreview() {
             : {
                 rotateX: flipTilt,
                 y: flipLift,
+                opacity: flipOpacity,
                 boxShadow: flipShadow,
                 transformOrigin: "50% 100%",
               }
         }
-        className="bg-background px-6 py-20 will-change-transform lg:px-12 lg:py-28"
+        className="relative bg-background px-6 py-20 will-change-transform lg:px-12 lg:py-28"
       >
       <div className="mx-auto grid max-w-7xl items-center gap-14 lg:grid-cols-[0.72fr_1.28fr] lg:gap-20">
         <div>
@@ -244,7 +260,25 @@ export default function CasePreview() {
           </motion.div>
         </div>
       </div>
+
+      {/* Lid sheen: only while the section is still standing up */}
+      {!reduce && !compact && (
+        <motion.span
+          aria-hidden
+          style={{ opacity: flipGlare }}
+          className="pointer-events-none absolute inset-0 bg-gradient-to-b from-white/80 via-white/20 to-transparent to-55%"
+        />
+      )}
       </motion.div>
+
+      {/* Lights dim as the dark closer rises over the page */}
+      {!reduce && (
+        <motion.div
+          aria-hidden
+          className="pointer-events-none absolute inset-0 bg-black"
+          style={{ opacity: exitDim }}
+        />
+      )}
     </section>
   );
 }

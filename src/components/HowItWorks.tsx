@@ -19,21 +19,21 @@ const easeMove = cubicBezier(0.42, 0, 0.58, 1);
 
 const STEPS = [
   {
-    label: "01 / tell it straight",
+    label: "tell it straight",
     title: "Write the messy version",
     body: "Type what happened in your own words. No forms, no legal language — get it out of your head and onto the page.",
     chipA: "“they charged me again…”",
     chipB: "no forms · no legal words",
   },
   {
-    label: "02 / we shape the case",
+    label: "we shape the case",
     title: "The facts come forward",
     body: "Fixora picks out the company, amounts, dates, and what you're actually asking for — then drafts a clear, calm complaint.",
     chipA: "company · amount · dates",
     chipB: "draft: calm and clear",
   },
   {
-    label: "03 / you stay in charge",
+    label: "you stay in charge",
     title: "Review, send, follow up",
     body: "You approve the draft, attach evidence, send it, and Fixora helps you track the reply until it's resolved.",
     chipA: "you press send",
@@ -44,6 +44,8 @@ const STEPS = [
 /**
  * One glass card. Its wrapper is a tall scroll block so the card pins briefly,
  * then recedes (scale + tilt + pull-away) as the next card slides over it.
+ * Deck tease: unseen card edges peek out beneath each card, so the three real
+ * steps read as the visible top of a much deeper deck.
  */
 function StackCard({
   step,
@@ -101,13 +103,34 @@ function StackCard({
                   transformOrigin: "top center",
                 }
           }
-          onPointerMove={(e) => {
-            if (reduce || e.pointerType !== "mouse" || i < total - 1) return;
-            const r = e.currentTarget.getBoundingClientRect();
-            mx.set(((e.clientX - r.left) / r.width) * 100);
-            my.set(((e.clientY - r.top) / r.height) * 100);
-          }}
-          className={`relative overflow-hidden rounded-[1.75rem] border border-white/10 bg-white/[0.055] p-8 sm:p-12 ${
+          className={reduce ? "" : "will-change-transform"}
+        >
+          {/* Infinite-deck tease: three unseen card edges peek out beneath the
+              card, dimming with depth — they recede together with the card so
+              card and deck never fall apart. Seen through the frosted glass,
+              they read as more cards stacked behind. */}
+          {!reduce &&
+            [1, 2, 3].map((d) => (
+              <span
+                key={d}
+                aria-hidden
+                className="pointer-events-none absolute rounded-[1.75rem] border border-white/[0.08] bg-white/[0.05]"
+                style={{
+                  insetInline: `${d * 5}px`,
+                  top: `${d * 12}px`,
+                  height: `calc(100% - ${d * 14}px)`,
+                  opacity: 1 - d * 0.25,
+                }}
+              />
+            ))}
+          <motion.div
+            onPointerMove={(e) => {
+              if (reduce || e.pointerType !== "mouse" || i < total - 1) return;
+              const r = e.currentTarget.getBoundingClientRect();
+              mx.set(((e.clientX - r.left) / r.width) * 100);
+              my.set(((e.clientY - r.top) / r.height) * 100);
+            }}
+          className={`relative overflow-hidden rounded-[1.75rem] border border-white/10 bg-white/[0.07] p-8 backdrop-blur-xl sm:p-12 ${
             // Depth shadows (J): each level casts a harder shadow onto the card
             // below it, selling the physical stack without blur filters.
             [
@@ -115,8 +138,23 @@ function StackCard({
               "shadow-[0_28px_60px_-18px_rgba(0,0,0,0.62)]",
               "shadow-[0_38px_70px_-18px_rgba(0,0,0,0.68)]",
             ][Math.min(i, 2)]
-          } ${reduce ? "" : "will-change-transform"}`}
-        >
+          }`}
+            >
+          {/* Glass detailing: glossy top edge highlight and a soft diagonal
+              light wash across the upper half, so the card reads as a pane
+              rather than a flat tinted surface */}
+          <span
+            aria-hidden
+            className="pointer-events-none absolute inset-x-8 top-0 h-px bg-gradient-to-r from-transparent via-white/40 to-transparent"
+          />
+          <span
+            aria-hidden
+            className="pointer-events-none absolute inset-0 rounded-[1.75rem]"
+            style={{
+              background:
+                "radial-gradient(120% 55% at 25% -8%, rgba(255,255,255,0.10), transparent 60%)",
+            }}
+          />
           {/* Cursor-tracked glare, only ever visible on the front card */}
           {i === total - 1 && glare !== null && !reduce && (
             <motion.span
@@ -134,14 +172,6 @@ function StackCard({
               className="pointer-events-none absolute inset-0 rounded-[1.75rem] bg-[#101010]"
             />
           )}
-          {/* Card number watermark, huge and faint at the card's edge */}
-          <span
-            aria-hidden
-            className="pointer-events-none absolute -right-4 -top-9 select-none font-heading text-[9rem] font-medium leading-none text-white/[0.045]"
-          >
-            {i + 1}
-          </span>
-
           <div className="relative">
             <div className="flex items-center justify-between">
               <span className="font-body text-[10px] font-semibold uppercase tracking-[0.18em] text-brand-300">
@@ -169,6 +199,7 @@ function StackCard({
               </span>
             </div>
           </div>
+          </motion.div>
         </motion.div>
       </div>
     </div>

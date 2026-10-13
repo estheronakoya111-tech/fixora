@@ -51,7 +51,7 @@ export default function Hero({ onStart, progress }: { onStart: () => void; progr
             initial={reduce ? false : { opacity: 0, y: 28 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.8, ease }}
-            className="relative z-10 max-w-2xl lg:-mt-16 lg:mb-16"
+            className="relative z-10 max-w-2xl"
           >
             <div className="mb-7 flex items-center gap-3 text-[11px] font-semibold uppercase tracking-[0.2em] text-positive-strong"><span className="h-px w-10 bg-positive" />Fixora / consumer clarity</div>
             <h1 className="max-w-2xl font-heading text-[clamp(3.6rem,7vw,6.9rem)] font-medium leading-[0.9] tracking-[-0.075em]">

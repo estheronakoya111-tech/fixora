@@ -9,6 +9,11 @@ import type { Case as StoredCase } from "@/lib/types";
 type Status = "reply" | "progress" | "draft" | "waiting" | "done";
 type Filter = "all" | "needs" | "waiting" | "done";
 type Sort = "needs" | "newest" | "oldest";
+const SORTS: Record<Sort, string> = {
+  needs: "Needs you first",
+  newest: "Newest first",
+  oldest: "Oldest first",
+};
 
 type CaseItem = {
   id: string;
@@ -124,7 +129,18 @@ export default function Cases({
 }) {
   const [filter, setFilter] = useState<Filter>("all");
   const [sort, setSort] = useState<Sort>("needs");
+  const [sortOpen, setSortOpen] = useState(false);
   const [query, setQuery] = useState("");
+
+  // The custom sort menu closes on Escape, like the native dropdown used to.
+  useEffect(() => {
+    if (!sortOpen) return;
+    const close = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setSortOpen(false);
+    };
+    document.addEventListener("keydown", close);
+    return () => document.removeEventListener("keydown", close);
+  }, [sortOpen]);
 
   useEffect(() => {
     if (!focusCaseId) return;
@@ -210,29 +226,52 @@ export default function Cases({
                 </button>
               ))}
             </div>
-            <label className="group flex min-w-0 items-center gap-2 text-sm text-muted">
-              <span className="shrink-0 font-medium">Sort by</span>
-              <span className="relative min-w-0">
-                <select
-                  value={sort}
-                  onChange={(e) => setSort(e.target.value as Sort)}
-                  aria-label="Sort cases"
-                  className="w-full min-w-[9.5rem] appearance-none rounded-xl border border-border-strong bg-surface py-2.5 pl-3.5 pr-9 text-sm font-semibold text-foreground shadow-soft outline-none transition-colors hover:border-brand/50 focus:border-brand focus:ring-4 focus:ring-brand/10 sm:min-w-[10.5rem]"
-                >
-                  <option value="needs">Needs you first</option>
-                  <option value="newest">Newest first</option>
-                  <option value="oldest">Oldest first</option>
-                </select>
-                <svg
-                  viewBox="0 0 16 16"
-                  fill="none"
-                  aria-hidden
-                  className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted transition-colors group-hover:text-brand-strong"
-                >
+            <div className="relative">
+              <button
+                type="button"
+                aria-haspopup="listbox"
+                aria-expanded={sortOpen}
+                aria-label="Sort cases"
+                onClick={() => setSortOpen((o) => !o)}
+                className="flex items-center gap-2 rounded-xl border border-border-strong bg-surface py-2.5 pl-3.5 pr-3 text-sm shadow-soft outline-none transition-colors hover:border-brand/50 focus-visible:border-brand focus-visible:ring-4 focus-visible:ring-brand/10"
+              >
+                <span className="font-medium text-muted">Sort by</span>
+                <span className="font-semibold text-foreground">{SORTS[sort]}</span>
+                <svg viewBox="0 0 16 16" fill="none" aria-hidden className={`h-4 w-4 text-muted transition-transform ${sortOpen ? "rotate-180" : ""}`}>
                   <path d="m4 6 4 4 4-4" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
                 </svg>
-              </span>
-            </label>
+              </button>
+              {sortOpen && (
+                <>
+                  {/* Click-away layer: closes the menu like a native dropdown */}
+                  <button aria-hidden tabIndex={-1} type="button" onClick={() => setSortOpen(false)} className="fixed inset-0 z-20 cursor-default bg-transparent" />
+                  <div role="listbox" aria-label="Sort cases" className="absolute right-0 z-30 mt-2 w-52 overflow-hidden rounded-xl border border-border-strong bg-surface p-1.5 shadow-lift">
+                    {(Object.keys(SORTS) as Sort[]).map((option) => (
+                      <button
+                        key={option}
+                        type="button"
+                        role="option"
+                        aria-selected={sort === option}
+                        onClick={() => {
+                          setSort(option);
+                          setSortOpen(false);
+                        }}
+                        className={`flex w-full items-center justify-between gap-3 rounded-lg px-3 py-2 text-left text-sm transition-colors ${
+                          sort === option ? "bg-brand-soft font-semibold text-brand-700" : "font-medium text-muted hover:bg-surface-sunken hover:text-foreground"
+                        }`}
+                      >
+                        {SORTS[option]}
+                        {sort === option && (
+                          <svg viewBox="0 0 16 16" fill="none" aria-hidden className="h-4 w-4 text-brand-strong">
+                            <path d="m3.5 8.5 3 3 6-6.5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+                          </svg>
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
           </div>
 
           <ul className="mt-5 space-y-4">
@@ -257,8 +296,8 @@ export default function Cases({
                     className={`group relative block w-full cursor-pointer overflow-hidden rounded-2xl bg-surface p-5 pl-7 text-left transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lift focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand ${raised ? "shadow-lift" : "shadow-card"} ${c.status === "done" ? "opacity-80" : ""} ${focused ? "ring-2 ring-brand ring-offset-2 ring-offset-background" : ""}`}
                   >
                     <span aria-hidden className={`absolute inset-y-0 left-0 w-1.5 ${s.edge}`} />
-                    <div className="flex items-start justify-between gap-4">
-                      <p className="font-heading text-lg font-semibold">{c.company}</p>
+                    <div className="flex items-center justify-between gap-4">
+                      <p className="min-w-0 truncate font-heading text-lg font-semibold">{c.company}</p>
                       <span className="flex shrink-0 items-center gap-3">
                         {c.amount && <p className="font-heading text-lg font-semibold">{c.amount}</p>}
                         {onDeleteCase && (
@@ -269,23 +308,25 @@ export default function Cases({
                               e.stopPropagation();
                               onDeleteCase(c.id);
                             }}
-                            className="shrink-0 rounded-full bg-danger-soft px-3.5 py-1.5 text-xs font-semibold text-danger transition-colors hover:brightness-95"
+                            className="shrink-0 rounded-full bg-danger-soft px-3.5 py-1.5 text-xs font-semibold text-danger transition-opacity hover:brightness-95 max-sm:opacity-100 sm:opacity-0 sm:focus-visible:opacity-100 sm:group-hover:opacity-100"
                           >
                             Delete
                           </button>
                         )}
                       </span>
                     </div>
-                    <p className="mt-0.5 text-sm text-muted">{c.issue}</p>
+                    <p className="mt-1 min-w-0 truncate text-sm text-muted">{c.issue}</p>
                     <MiniTrack progress={c.progress} status={c.status} />
-                    <p className="mt-4 text-sm">
-                      <span className="text-muted">Next:</span> <span className="font-medium">{c.next}</span>
-                    </p>
-                    <div className="mt-4 flex items-center justify-between gap-3">
-                      <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium ${s.badge}`}>
-                        {s.label}
+                    <div className="mt-4 flex min-w-0 items-center justify-between gap-3">
+                      <span className="flex min-w-0 items-center gap-2.5">
+                        <span className={`inline-flex shrink-0 items-center rounded-full px-2.5 py-1 text-xs font-medium ${s.badge}`}>
+                          {s.label}
+                        </span>
+                        <span className="min-w-0 truncate text-sm">
+                          <span className="text-muted">Next:</span> <span className="font-medium">{c.next}</span>
+                        </span>
                       </span>
-                      <span className="flex items-center gap-2 text-sm text-muted">
+                      <span className="flex shrink-0 items-center gap-2 text-sm text-muted">
                         {c.meta}
                         <span className="transition-transform group-hover:translate-x-0.5">
                           <Arrow />
