@@ -15,6 +15,9 @@ const STATUS: Record<CaseStatus, { label: string; badge: string; bar: string }> 
   "response-needs-attention": { label: "Reply needs attention", badge: "bg-brand-soft text-brand-700", bar: "#C98A2B" },
   "response-reviewed": { label: "Reply reviewed", badge: "bg-positive-soft text-positive-strong", bar: "#5F8A6C" },
   "escalated": { label: "Escalated", badge: "bg-warning-soft text-[#8a5a12]", bar: "#B06A1F" },
+  "outcome-needs-attention": { label: "Outcome needs review", badge: "bg-brand-soft text-brand-700", bar: "#C98A2B" },
+  "resolved": { label: "Resolved (simulated)", badge: "bg-positive-soft text-positive-strong", bar: "#7AA287" },
+  "final-guidance": { label: "Closed with guidance", badge: "bg-surface-sunken text-muted", bar: "#A19E97" },
 };
 
 const BTN3D =
@@ -22,7 +25,7 @@ const BTN3D =
 
 const DAY = 86400000;
 const MAX_HOME_CASES = 4;
-const NEEDS: CaseStatus[] = ["in-progress", "ready-to-send", "response-needs-attention"];
+const NEEDS: CaseStatus[] = ["in-progress", "ready-to-send", "response-needs-attention", "outcome-needs-attention"];
 
 const stamp = (c: SavedCase) => c.updatedAt ?? c.createdAt;
 
@@ -72,7 +75,7 @@ export default function Dashboard({
 
   const visibleCases = useMemo(() => {
     const q = query.trim().toLowerCase();
-    const PRIORITY: Record<CaseStatus, number> = { "response-needs-attention": 0, "ready-to-send": 1, "in-progress": 2, "waiting-for-response": 3, "response-reviewed": 4, "escalated": 5 };
+    const PRIORITY: Record<CaseStatus, number> = { "response-needs-attention": 0, "outcome-needs-attention": 1, "ready-to-send": 2, "in-progress": 3, "escalated": 4, "waiting-for-response": 5, "response-reviewed": 6, "resolved": 7, "final-guidance": 8 };
     return [...cases]
       .filter((c) => !q || [c.company, c.details?.issue, c.rawStory].some((v) => v?.toLowerCase().includes(q)))
       .sort((a, b) => PRIORITY[a.status] - PRIORITY[b.status] || stamp(b) - stamp(a));
@@ -87,9 +90,13 @@ export default function Dashboard({
     : selected?.status === "ready-to-send" ? "Your complaint is ready. Review it before sending."
     : selected?.status === "response-reviewed" ? "Your latest company reply has been reviewed."
     : selected?.status === "escalated" ? "Your escalation is away — the simulated final outcome arrives on the Replies screen."
+    : selected?.status === "outcome-needs-attention" ? "The simulated final outcome is in. Review it and close the case out."
+    : selected?.status === "resolved" ? "The simulated outcome resolved this complaint — nothing more to do."
+    : selected?.status === "final-guidance" ? "The case ended with final guidance — the workflow reached its end point."
     : "Continue the conversation and fill in any missing details.";
   const nextAction =
     selected?.status === "response-needs-attention" ? "Review reply"
+    : selected?.status === "outcome-needs-attention" ? "Review outcome"
     : selected?.status === "in-progress" ? "Continue"
     : "Open case";
 
@@ -98,14 +105,15 @@ export default function Dashboard({
     { label: "Needs you", icon: ICON.edit, color: "#E86A2A", tint: "bg-brand-soft text-brand-700", list: cases.filter((c) => NEEDS.includes(c.status)) },
     { label: "Waiting for reply", icon: ICON.clock, color: "#4F6F8A", tint: "bg-[#E8EEF3] text-[#4F6F8A]", list: cases.filter((c) => c.status === "waiting-for-response") },
     { label: "Reply reviewed", icon: ICON.check, color: "#5F8A6C", tint: "bg-positive-soft text-positive-strong", list: cases.filter((c) => c.status === "response-reviewed") },
-    { label: "Escalated", icon: ICON.arrow, color: "#B06A1F", tint: "bg-warning-soft text-[#8a5a12]", list: cases.filter((c) => c.status === "escalated") },
   ];
   const reviewed = groups[2].list.length;
   const pct = cases.length ? reviewed / cases.length : 0;
   const evidenceCount = cases.reduce((t, c) => t + c.evidenceFiles.length, 0);
 
 
-  const statusCounts = (Object.keys(STATUS) as CaseStatus[]).map((s) => ({ s, n: cases.filter((c) => c.status === s).length }));
+  // Escalated cases are managed from the Replies screen, so that row is kept
+  // out of this overview panel on purpose.
+  const statusCounts = (Object.keys(STATUS) as CaseStatus[]).filter((s) => s !== "escalated").map((s) => ({ s, n: cases.filter((c) => c.status === s).length }));
   const statusMax = Math.max(1, ...statusCounts.map((x) => x.n));
 
   const searchMatches = useMemo<SearchMatch[]>(() => {

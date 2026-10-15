@@ -522,7 +522,7 @@ export default function Conversation({ initialStory, initialMessages, initialDet
             )}
           </AnimatePresence>
 
-          <div className={`flex items-end gap-2 rounded-[28px] bg-surface p-2 pl-5 shadow-lift ${listening ? "ring-2 ring-brand/40" : ""}`}>
+          <div className="flex items-end gap-2 rounded-[28px] bg-surface p-2 pl-5 shadow-lift">
             <div className="relative min-w-0 flex-1 py-2.5">
               {listening && !draft && (
                 <span aria-hidden className="pointer-events-none absolute inset-y-0 left-0 flex items-center gap-2 text-sm text-brand-strong">

@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import type { CaseDetails } from "@/lib/case";
-import type { CaseStatus, ComplaintDraft, EvidenceFileMeta } from "@/lib/types";
+import type { CaseStatus, CaseTimelineEvent, ComplaintDraft, EvidenceFileMeta } from "@/lib/types";
 
 type CaseProps = {
   details: CaseDetails;
@@ -12,6 +12,7 @@ type CaseProps = {
   initialStatus?: CaseStatus;
   initialSentAt?: number;
   userName?: string;
+  events?: CaseTimelineEvent[];
   onBack?: () => void;
   onSaveDraft?: (draft: ComplaintDraft) => void;
   onEvidenceChange?: (files: EvidenceFileMeta[]) => void;
@@ -33,6 +34,36 @@ const BTN3D =
 
 const SOFT3D =
   "rounded-full border border-border-strong bg-surface-sunken px-4 py-2.5 text-sm font-medium shadow-[0_3px_0_#D2CFC7,0_8px_14px_-8px_rgba(32,32,30,0.25)] transition-all hover:-translate-y-px hover:bg-border active:translate-y-[2px] active:shadow-[0_1px_0_#D2CFC7] disabled:opacity-50";
+
+// Cuts the model's own sign-off (and any name it invented after it) so the
+// real name is appended exactly once — no "Yours sincerely, A\n\nA" doubles.
+// Done line-by-line so the letter body is never swallowed, only the closing
+// sign-off block at the very end is removed.
+const SIGNOFF_LINE = /^(yours\s+(sincerely|faithfully|truly)|kind\s+regards|best\s+regards|regards|sincerely|faithfully|truly|thank\s+you|thanks)[,.:!\s]*$/i;
+
+// A short, capitalised, unpunctuated trailing line reads as an invented
+// signature (e.g. "John Doe", "Billing Team") rather than letter content.
+function isNameLine(s: string): boolean {
+  if (!s || s.length > 40 || /[.!?,;:]/.test(s)) return false;
+  if (s.split(/\s+/).length > 4) return false;
+  return /^[A-Z][A-Za-z'.-]*(\s+[A-Z][A-Za-z'.-]*)*$/.test(s);
+}
+
+function signLetter(body: string, userName?: string): string {
+  const trimmed = body.replace(/\s+$/g, "");
+  if (!userName) return trimmed;
+  const lines = trimmed.split("\n");
+  let end = lines.length;
+  while (end > 0 && !lines[end - 1].trim()) end--; // drop trailing blank lines
+  const last = end - 1;
+  if (last >= 0 && SIGNOFF_LINE.test(lines[last].trim())) {
+    end = last; // sign-off is the final line — cut it
+  } else if (last >= 1 && SIGNOFF_LINE.test(lines[last - 1].trim()) && isNameLine(lines[last].trim())) {
+    end = last - 1; // sign-off + invented name — cut both
+  }
+  const base = lines.slice(0, end).join("\n").replace(/\s+$/g, "");
+  return `${base}\n\nYours sincerely,\n\n${userName}`;
+}
 
 function template(d: CaseDetails) {
   const company = d.company ?? "your company";
@@ -74,8 +105,24 @@ function Clip() {
   );
 }
 
-// The evidence chips + attach button, reused in the draft letter and the
-// ready-to-send preview so files can be added or removed at every stage.
+// Small line icons for the card headers, matching the app's stroke style.
+function Icon({ d, className = "h-5 w-5" }: { d: string; className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" className={className} fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d={d} />
+    </svg>
+  );
+}
+
+const ICON = {
+  pen: "M12 20h9M16.5 3.5a2.1 2.1 0 013 3L7 19l-4 1 1-4z",
+  send: "M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z",
+  clock: "M12 7v5l3 2M21 12a9 9 0 11-18 0 9 9 0 0118 0z",
+  steps: "M9 11l3 3L22 4M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11",
+};
+
+// The evidence chips + attach button, reused in the letter and the preview
+// so files can be added or removed at every stage.
 function EvidenceRow({ files, onRemove, onAdd }: { files: EvidenceFile[]; onRemove: (id: string) => void; onAdd: () => void }) {
   return (
     <div className="mt-4 border-t border-dashed border-border-strong pt-4">
@@ -97,12 +144,12 @@ function EvidenceRow({ files, onRemove, onAdd }: { files: EvidenceFile[]; onRemo
   );
 }
 
-export default function Case({ details, initialDraft, initialEvidence = [], initialStatus, initialSentAt, userName, onBack, onSaveDraft, onEvidenceChange, onStatusChange, onGoToReplies }: CaseProps) {
+export default function Case({ details, initialDraft, initialEvidence = [], initialStatus, initialSentAt, userName, events, onBack, onSaveDraft, onEvidenceChange, onStatusChange, onGoToReplies }: CaseProps) {
   const reduce = useReducedMotion();
   const spring = reduce ? { duration: 0 } : ({ type: "spring", stiffness: 140, damping: 20 } as const);
 
   const seed = template(details);
-  const initialBody = initialDraft?.body ?? (userName ? `${seed.message}\n\n${userName}` : seed.message);
+  const initialBody = initialDraft?.body ?? signLetter(seed.message, userName);
   const [to, setTo] = useState(initialDraft?.recipient ?? "");
   const [subject, setSubject] = useState(initialDraft?.subject ?? seed.subject);
   const [message, setMessage] = useState(initialBody);
@@ -135,10 +182,7 @@ export default function Case({ details, initialDraft, initialEvidence = [], init
       const draft = await fetchDraft(JSON.parse(detailsKey));
       if (live && draft && !edited.current) {
         setSubject(draft.subject);
-        const signedMessage = userName && !draft.message.includes(userName)
-          ? `${draft.message}\n\n${userName}`
-          : draft.message;
-        setMessage(signedMessage);
+        setMessage(signLetter(draft.message, userName));
       }
       if (live) setPolishing(false);
     })();
@@ -161,7 +205,7 @@ export default function Case({ details, initialDraft, initialEvidence = [], init
     if (draft) {
       edited.current = false;
       setSubject(draft.subject);
-      setMessage(draft.message);
+      setMessage(signLetter(draft.message, userName));
     }
     setPolishing(false);
   }
@@ -207,25 +251,41 @@ export default function Case({ details, initialDraft, initialEvidence = [], init
   }
 
   const idx = STAGES.findIndex((s) => s.id === stage);
-  const sealed = stage !== "draft";
   const editable = stage === "draft";
   const line = "w-full bg-transparent font-body outline-none placeholder:text-subtle read-only:cursor-default";
+
+  // One card explains the letter at every stage — what it is and what to do.
+  const cardTitle = stage === "draft" ? "Your complaint letter" : stage === "ready" ? "Ready to send" : "The letter you sent";
+  const cardBlurb =
+    stage === "draft"
+      ? "Fixora drafted this from your story. Edit anything — nothing leaves your account until you send it yourself."
+      : stage === "ready"
+        ? "This is exactly what Gmail will open. Read it over, then send it from your own email."
+        : `This is the letter you sent on ${sentOn}. Your case now waits for the company's reply.`;
+
+  const statusChip =
+    stage === "draft"
+      ? { label: "Draft", cls: "bg-surface-sunken text-muted" }
+      : stage === "ready"
+        ? { label: "Ready to send", cls: "bg-brand-soft text-brand-700" }
+        : escalated
+          ? { label: "Escalated", cls: "bg-warning-soft text-[#8a5a12]" }
+          : { label: "Waiting for reply", cls: "bg-positive-soft text-positive-strong" };
 
   return (
     <div className="relative min-h-dvh overflow-hidden pb-36 text-foreground">
       <div aria-hidden className="pointer-events-none absolute -right-24 -top-24 h-96 w-96 rounded-full bg-brand-100/60 blur-3xl" />
       <div aria-hidden className="pointer-events-none absolute -bottom-24 -left-24 h-80 w-80 rounded-full bg-positive-soft blur-3xl" />
 
-      <main className="relative z-10 mx-auto w-full max-w-7xl px-5 pb-28 pt-4 md:px-8 md:pb-12">
+      <main className="relative z-10 mx-auto w-full max-w-3xl px-5 pb-28 pt-4 md:px-8 md:pb-12">
         {/* Kept mounted at every stage so "Add evidence" always works. */}
         <input ref={fileInput} type="file" multiple hidden onChange={(e) => addFiles(e.target.files)} />
+
         <div className="flex items-center justify-between">
           <button type="button" onClick={onBack} className="rounded-full px-3 py-1.5 text-sm font-medium text-muted transition-colors hover:bg-surface hover:text-foreground">
             ← Cases
           </button>
-          <span className={`rounded-full px-3 py-1 text-xs font-medium ${stage === "sent" ? "bg-positive-soft text-positive-strong" : "bg-brand-soft text-brand-700"}`}>
-            {stage === "draft" ? "Draft" : stage === "ready" ? "Ready to send" : escalated ? "Escalated" : "Waiting for reply"}
-          </span>
+          <span className={`rounded-full px-3 py-1 text-xs font-medium ${statusChip.cls}`}>{statusChip.label}</span>
         </div>
 
         <h1 className="mt-5 font-heading text-2xl font-semibold tracking-tight">
@@ -234,6 +294,7 @@ export default function Case({ details, initialDraft, initialEvidence = [], init
         </h1>
         <p className="text-sm text-muted">{details.issue ?? "Complaint"}</p>
 
+        {/* Progress stepper — always visible so you know where you are. */}
         <ol className="relative mt-7 flex" aria-label="Progress">
           <span aria-hidden className="absolute left-[16.7%] right-[16.7%] top-3 h-1 rounded-full bg-border" />
           <motion.span aria-hidden className="absolute left-[16.7%] right-[16.7%] top-3 h-1 origin-left rounded-full bg-positive/60" animate={{ scaleX: idx / 2 }} transition={spring} />
@@ -248,108 +309,89 @@ export default function Case({ details, initialDraft, initialEvidence = [], init
           ))}
         </ol>
 
-        <div className="mt-10" style={{ perspective: 1100 }}>
-          <motion.div
-            className="relative z-20"
-            style={{ transform: "rotateX(10deg)", transformStyle: "preserve-3d", transformOrigin: "50% 100%" }}
-          >
-            <div className="relative overflow-hidden rounded-2xl bg-gradient-to-b from-surface to-surface-muted shadow-lift">
-              <motion.div
-                aria-hidden
-                animate={{ rotateX: sealed ? 0 : 180 }}
-                transition={spring}
-                style={{ transformOrigin: "top", backfaceVisibility: "hidden", clipPath: "polygon(0 0, 100% 0, 50% 100%)" }}
-                className="absolute inset-x-0 top-0 z-10 h-24 bg-gradient-to-b from-brand-100 to-brand-50"
-              />
-              <div className="relative px-6 pb-5 pt-24">
-                <div className="space-y-2.5 text-sm">
-                  <label className="flex items-baseline gap-3">
-                    <span className="w-8 shrink-0 text-xs font-medium text-muted">To</span>
-                    <input type="email" value={to} readOnly={!editable} onChange={(e) => setTo(e.target.value)} placeholder="support@company.com" aria-label="Recipient email" className={`${line} text-[15px] font-medium`} />
-                  </label>
-                  <label className="flex items-baseline gap-3">
-                    <span className="w-8 shrink-0 text-xs font-medium text-muted">Re</span>
-                    <input value={subject} readOnly={!editable} onChange={(e) => { edited.current = true; setSubject(e.target.value); }} aria-label="Subject" className={`${line} text-[15px]`} />
-                  </label>
-                </div>
-              </div>
-
-              <AnimatePresence>
-                {stage === "sent" && (
-                  <motion.div
-                    initial={reduce ? false : { scale: 2.4, opacity: 0, rotate: -18 }}
-                    animate={{ scale: 1, opacity: 1, rotate: -8 }}
-                    transition={reduce ? { duration: 0 } : { type: "spring", stiffness: 260, damping: 16 }}
-                    className="absolute right-5 top-1/2 z-20 -translate-y-1/2 rounded-lg border-4 border-positive px-3 py-1 text-center font-heading text-positive-strong"
-                  >
-                    <p className="text-lg font-bold uppercase tracking-[0.2em]">Sent</p>
-                    <p className="text-xs">{sentOn}</p>
-                  </motion.div>
-                )}
-              </AnimatePresence>
+        {events && events.length > 0 && (
+          <section aria-labelledby="case-timeline" className="mt-8 overflow-hidden rounded-3xl bg-surface shadow-card">
+            <div className="flex items-center gap-3 border-b border-border/60 bg-surface-muted px-6 py-4">
+              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-brand-soft text-brand-strong"><Icon d={ICON.clock} className="h-4 w-4" /></span>
+              <h2 id="case-timeline" className="font-heading text-sm font-semibold">Case timeline</h2>
             </div>
-          </motion.div>
-        </div>
-        {editable && <p className="mt-2 text-center text-xs text-muted">Find the address on the company&apos;s contact page.</p>}
-
-        <AnimatePresence initial={false}>
-          {editable && (
-            <motion.section
-              key="letter"
-              aria-labelledby="letter"
-              initial={{ opacity: 0, y: -40, scale: 0.97 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: -80, scale: 0.96, transition: { duration: reduce ? 0 : 0.35 } }}
-              transition={spring}
-              className="relative z-10 -mt-4 rounded-2xl bg-surface px-6 pb-6 pt-10 shadow-card sm:px-8"
-            >
-              <div className="flex items-center justify-between">
-                <h2 id="letter" className="font-heading text-sm font-semibold text-muted">Your letter</h2>
-                <span className="text-xs text-muted">{polishing ? "Fixora is polishing your draft..." : "Edit anything"}</span>
-              </div>
-              <textarea
-                value={message}
-                onChange={(e) => { edited.current = true; setMessage(e.target.value); }}
-                aria-label="Message"
-                rows={12}
-                className="mt-3 w-full resize-y bg-transparent text-[15px] leading-7 outline-none"
-              />
-
-              <EvidenceRow files={files} onRemove={removeFile} onAdd={() => fileInput.current?.click()} />
-            </motion.section>
-          )}
-        </AnimatePresence>
-
-        {/* Ready stage: show exactly what Gmail will send, and let the user
-            choose to use it or go back and edit. */}
-        {stage === "ready" && (
-          <section className="mt-8 rounded-2xl bg-surface px-6 py-5 shadow-card sm:px-8">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <h2 className="font-heading text-sm font-semibold text-muted">The message you&apos;ll send</h2>
-              <button type="button" onClick={() => setStage("draft")} className="text-xs font-medium text-brand-strong hover:underline">
-                Not happy with it? Edit the letter
-              </button>
-            </div>
-            <dl className="mt-3 space-y-1.5 text-sm">
-              <div className="flex gap-3">
-                <dt className="w-8 shrink-0 text-xs text-muted">To</dt>
-                <dd className="min-w-0 break-all font-medium">{to || "Add the company&apos;s email address"}</dd>
-              </div>
-              <div className="flex gap-3">
-                <dt className="w-8 shrink-0 text-xs text-muted">Re</dt>
-                <dd className="min-w-0 break-all">{subject}</dd>
-              </div>
-            </dl>
-            <p className="mt-3 whitespace-pre-wrap text-[15px] leading-7">{message}</p>
-            <EvidenceRow files={files} onRemove={removeFile} onAdd={() => fileInput.current?.click()} />
+            <ol className="space-y-0 divide-y divide-border/50">
+              {events.map((event) => (
+                <li key={event.id} className="flex flex-wrap items-baseline gap-3 px-6 py-3 text-sm">
+                  <span aria-hidden className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-brand" />
+                  <span className="font-medium">{event.label}</span>
+                  <span className="ml-auto text-xs text-muted">{new Date(event.at).toLocaleDateString(undefined, { month: "short", day: "numeric" })}</span>
+                </li>
+              ))}
+            </ol>
           </section>
         )}
 
+        {/* The letter — one clear card, editable in draft and read-only after. */}
+        <motion.section
+          key="letter"
+          aria-labelledby="letter"
+          initial={{ opacity: 0, y: 16 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={spring}
+          className="mt-8 overflow-hidden rounded-3xl bg-surface shadow-card"
+        >
+          <div className="flex items-start gap-4 border-b border-border/60 bg-surface-muted px-6 py-5 sm:px-8">
+            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-brand-soft text-brand-strong">
+              <Icon d={stage === "sent" ? ICON.send : ICON.pen} />
+            </span>
+            <div className="min-w-0 flex-1">
+              <h2 id="letter" className="font-heading text-base font-semibold">{cardTitle}</h2>
+              <p className="mt-1 text-sm leading-6 text-muted">{cardBlurb}</p>
+            </div>
+          </div>
+
+          <div className="px-6 pt-5 sm:px-8">
+            <div className="space-y-2.5 rounded-2xl bg-surface-muted p-4 text-sm">
+              <label className="flex items-baseline gap-3">
+                <span className="w-8 shrink-0 text-xs font-medium text-muted">To</span>
+                <input type="email" value={to} readOnly={!editable} onChange={(e) => setTo(e.target.value)} placeholder="support@company.com" aria-label="Recipient email" className={`${line} text-[15px] font-medium`} />
+              </label>
+              <label className="flex items-baseline gap-3">
+                <span className="w-8 shrink-0 text-xs font-medium text-muted">Re</span>
+                <input value={subject} readOnly={!editable} onChange={(e) => { edited.current = true; setSubject(e.target.value); }} aria-label="Subject" className={`${line} text-[15px]`} />
+              </label>
+            </div>
+            {editable && <p className="mt-2 text-xs text-muted">Find the address on the company&apos;s contact page.</p>}
+          </div>
+
+          <div className="px-6 pb-6 pt-4 sm:px-8">
+            {editable ? (
+              <>
+                <div className="flex items-center justify-between">
+                  <h3 className="font-heading text-sm font-semibold text-muted">Your letter</h3>
+                  <span className="text-xs text-muted">{polishing ? "Fixora is polishing your draft..." : "Edit anything"}</span>
+                </div>
+                <textarea
+                  value={message}
+                  onChange={(e) => { edited.current = true; setMessage(e.target.value); }}
+                  aria-label="Message"
+                  rows={12}
+                  className="mt-3 w-full resize-y rounded-2xl bg-surface-muted p-4 text-[15px] leading-7 outline-none"
+                />
+              </>
+            ) : (
+              <p className="whitespace-pre-wrap rounded-2xl bg-surface-muted p-4 text-[15px] leading-7">{message}</p>
+            )}
+            <EvidenceRow files={files} onRemove={removeFile} onAdd={() => fileInput.current?.click()} />
+          </div>
+        </motion.section>
+
+        {/* Ready stage: the three concrete steps to actually send it. */}
         {stage === "ready" && (
-          <motion.ol initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={spring} className="mt-8 space-y-6 rounded-3xl bg-surface p-6 shadow-card sm:p-8">
-            <li className="flex gap-4">
+          <motion.ol initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={spring} className="mt-8 overflow-hidden rounded-3xl bg-surface shadow-card">
+            <div className="flex items-center gap-3 border-b border-border/60 bg-surface-muted px-6 py-4 sm:px-8">
+              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-brand-soft text-brand-strong"><Icon d={ICON.steps} className="h-4 w-4" /></span>
+              <h2 className="font-heading text-sm font-semibold">How to send it</h2>
+            </div>
+            <li className="flex gap-4 px-6 py-5 sm:px-8">
               <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-brand text-xs font-semibold text-white shadow-[0_3px_0_#9A3F12]">1</span>
-              <div>
+              <div className="min-w-0">
                 <p className="font-medium">Open Gmail, already filled in</p>
                 <p className="mt-1 text-sm text-muted">Use the button below. Prefer something else?</p>
                 <div className="mt-2 flex flex-wrap items-center gap-3 text-sm">
@@ -359,7 +401,7 @@ export default function Case({ details, initialDraft, initialEvidence = [], init
                 {gmail.length > 1900 && <p className="mt-2 text-xs text-warning">This letter is long. If Gmail cuts it off, use Copy letter.</p>}
               </div>
             </li>
-            <li className="flex gap-4">
+            <li className="flex gap-4 border-t border-border/50 px-6 py-5 sm:px-8">
               <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-surface text-xs font-semibold text-muted shadow-[0_3px_0_#D2CFC7]">2</span>
               <div className="min-w-0">
                 <p className="font-medium">Attach your files in Gmail</p>
@@ -377,7 +419,7 @@ export default function Case({ details, initialDraft, initialEvidence = [], init
                 )}
               </div>
             </li>
-            <li className="flex gap-4">
+            <li className="flex gap-4 border-t border-border/50 px-6 py-5 sm:px-8">
               <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-surface text-xs font-semibold text-muted shadow-[0_3px_0_#D2CFC7]">3</span>
               <div>
                 <p className="font-medium">Send it yourself, then tell us</p>
@@ -390,26 +432,48 @@ export default function Case({ details, initialDraft, initialEvidence = [], init
           </motion.ol>
         )}
 
+        {/* Sent stage: what happens next, in plain terms. */}
         {stage === "sent" && (
-          <motion.section initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={spring} className="mt-8 rounded-3xl border-l-4 border-l-positive bg-surface p-6 shadow-card">
-            <h2 className="font-heading text-lg font-semibold">{escalated ? "Escalated — awaiting the final outcome" : "Waiting for reply"}</h2>
-            <p className="mt-2 text-sm leading-relaxed">
-              {escalated
-                ? `Your escalation was sent on ${sentOn}. The labelled simulated final outcome — a demo, not a real company action — arrives on the Replies screen.`
-                : `Marked as sent on ${sentOn}. A simulated demo reply — not a real company message — arrives on the Replies screen about a minute after you send. Real companies can take longer, so keep an eye on your inbox too.`}
-            </p>
-            <div className="mt-5 flex flex-wrap items-center gap-3">
-              {onGoToReplies && (
-                <button type="button" onClick={onGoToReplies} className={BTN3D}>
-                  Check replies & notifications
-                  <span aria-hidden>→</span>
-                </button>
+          <motion.section initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={spring} className="mt-8 overflow-hidden rounded-3xl bg-surface shadow-card">
+            <div className="flex items-center gap-3 border-b border-border/60 bg-surface-muted px-6 py-4 sm:px-8">
+              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-positive-soft text-positive-strong"><Icon d={ICON.clock} className="h-4 w-4" /></span>
+              <h2 className="font-heading text-sm font-semibold">{escalated ? "Escalated — awaiting the final outcome" : "Waiting for reply"}</h2>
+            </div>
+            <div className="px-6 py-5 sm:px-8">
+              {escalated ? (
+                <>
+                  <p className="text-sm leading-relaxed">Your escalation was sent and confirmed on {sentOn}. This complaint has used its one escalation, so this is the last automated step.</p>
+                  <ol className="mt-3 space-y-2 text-sm leading-relaxed">
+                    <li>• The labelled <strong>simulated final outcome</strong> — a demo, not a real company action — arrives on the Replies screen about a minute later, on its own.</li>
+                    <li>• If it reads <strong>resolved</strong>, Fixora explains it and you can mark the complaint resolved there.</li>
+                    <li>• If it reads <strong>unresolved</strong>, Fixora gives final guidance (who to contact, what to gather) and the workflow ends there — no endless loop.</li>
+                  </ol>
+                </>
+              ) : (
+                <>
+                  <p className="text-sm leading-relaxed">Marked as sent on {sentOn}. Here is exactly what happens next:</p>
+                  <ol className="mt-3 space-y-2 text-sm leading-relaxed">
+                    <li>• Your case moves to <strong>Waiting for response</strong> and lives on the Replies screen.</li>
+                    <li>• About a minute after sending, Fixora delivers a <strong>simulated demo reply</strong> — clearly labelled, not a real company message. It arrives on its own and only once; waiting or refreshing does not restart it or create a second one.</li>
+                    <li>• Open the reply there: Fixora explains <strong>what the company said, what it means for you, and what you can do next</strong>.</li>
+                    <li>• You then choose the next step: <strong>wait</strong>, <strong>request clarification</strong>, or <strong>escalate</strong> — escalating drafts a formal letter for you to review and send from Gmail (one escalation per complaint).</li>
+                    <li>• Real companies can take much longer, so keep an eye on your real inbox too.</li>
+                  </ol>
+                </>
               )}
-              {!escalated && (
-                <button type="button" onClick={() => { setStage("ready"); onStatusChange?.("ready-to-send"); }} className="text-sm font-medium text-muted hover:text-foreground hover:underline">
-                  I haven&apos;t sent it yet
-                </button>
-              )}
+              <div className="mt-5 flex flex-wrap items-center gap-3">
+                {onGoToReplies && (
+                  <button type="button" onClick={onGoToReplies} className={BTN3D}>
+                    Check replies &amp; notifications
+                    <span aria-hidden>→</span>
+                  </button>
+                )}
+                {!escalated && (
+                  <button type="button" onClick={() => { setStage("ready"); onStatusChange?.("ready-to-send"); }} className="text-sm font-medium text-muted hover:text-foreground hover:underline">
+                    I haven&apos;t sent it yet
+                  </button>
+                )}
+              </div>
             </div>
           </motion.section>
         )}

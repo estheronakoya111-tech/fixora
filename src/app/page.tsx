@@ -28,9 +28,9 @@ import {
   setIntroStory,
   upsertCase,
 } from "@/lib/storage";
-import { isReplyDue, toReplyDueAt, SIMULATE_RETRY_MS } from "@/lib/demo-reply";
+import { isReplyDue, isOutcomeDue, toReplyDueAt, OUTCOME_DELAY_MS, SIMULATE_RETRY_MS } from "@/lib/demo-reply";
 import { nowMs } from "@/lib/case";
-import type { Case as StoredCase, CaseConversationTurn, CaseStatus, CaseTimelineEvent, CompanyReplyAnalysis, ComplaintDraft, DemoProfile, EvidenceFileMeta, NextActionChoice, Recommendation, ReplyVerdict } from "@/lib/types";
+import type { Case as StoredCase, CaseConversationTurn, CaseStatus, CaseTimelineEvent, CompanyReplyAnalysis, ComplaintDraft, DemoProfile, EvidenceFileMeta, FinalOutcomeRecord, NextActionChoice, Recommendation, ReplyVerdict } from "@/lib/types";
 
 type Screen = "auth" | "dashboard" | "cases" | "replies" | "learn" | "conversation" | "case";
 
@@ -237,21 +237,11 @@ export default function Page() {
     setCaseDetails(detailsFor(record));
     if (record.status === "in-progress") {
       setScreen("conversation");
-    } else if (record.status === "response-needs-attention" || record.status === "response-reviewed" || record.status === "escalated") {
+    } else if (record.companyReply || record.escalation || record.finalOutcome) {
       setScreen("replies");
     } else {
       setScreen("case");
     }
-  }, [profile]);
-
-  const openCaseDetails = useCallback((id: string) => {
-    if (!profile) return;
-    const record = getCases(profile.email).find((item) => item.id === id);
-    if (!record) return;
-    setActiveCaseId(record.id);
-    setStory(record.rawStory);
-    setCaseDetails(detailsFor(record));
-    setScreen("case");
   }, [profile]);
 
   const saveConversation = useCallback(({ messages, details }: { messages: CaseConversationTurn[]; details: CaseDetails }) => {
@@ -436,6 +426,65 @@ export default function Page() {
           inFlight.delete(record.id);
         }
       }
+
+      // The one simulated final outcome per escalated complaint, driven by
+      // outcomeDueAt — armed once on send-confirm, so a refresh neither
+      // restarts the wait nor produces a second outcome.
+      const dueOutcomes = getCases(email).filter((record) => isOutcomeDue(record, nowMs()));
+      for (const record of dueOutcomes) {
+        if (inFlight.has(record.id)) continue;
+        inFlight.add(record.id);
+        try {
+          const res = await fetch("/api/fixora/outcome", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              company: record.company ?? record.details?.company,
+              issue: record.details?.issue ?? record.summary?.problem,
+              amount: record.details?.amount,
+              date: record.details?.date,
+              goal: record.details?.goal ?? record.summary?.desiredOutcome,
+              rawStory: record.rawStory,
+              reply: record.companyReply?.replyText ?? "",
+              unresolved: record.companyReply?.unresolved ?? [],
+              complaint: record.escalation?.draft.body ?? "",
+            }),
+          });
+          const data = await res.json();
+          if (!res.ok) throw new Error(typeof data.error === "string" ? data.error : "outcome failed");
+          if (typeof data.replyText !== "string" || typeof data.meaning !== "string" || (data.verdict !== "resolved" && data.verdict !== "unresolved")) {
+            throw new Error("Incomplete simulated outcome. Please try again.");
+          }
+          updateCase(record.id, (saved) => {
+            if (saved.finalOutcome || saved.status !== "escalated") return saved; // one outcome only
+            const outcome = {
+              replyText: data.replyText,
+              meaning: data.meaning,
+              verdict: data.verdict as FinalOutcomeRecord["verdict"],
+              guidance: Array.isArray(data.guidance)
+                ? data.guidance.filter((item: unknown): item is string => typeof item === "string").slice(0, 4)
+                : [],
+              addedAt: nowMs(),
+              isSimulated: true,
+            } satisfies FinalOutcomeRecord;
+            const ended = {
+              ...saved,
+              finalOutcome: outcome,
+              // The demo's last automated step: the user then either marks the
+              // case resolved or keeps the recorded final guidance.
+              status: "outcome-needs-attention" as CaseStatus,
+              outcomeDueAt: undefined,
+            };
+            return pushEvent(ended, "Final outcome demonstrated", "outcome");
+          });
+        } catch {
+          updateCase(record.id, (saved) => saved.finalOutcome || saved.status !== "escalated"
+            ? saved
+            : { ...saved, outcomeDueAt: nowMs() + SIMULATE_RETRY_MS });
+        } finally {
+          inFlight.delete(record.id);
+        }
+      }
     }
 
     void settleDueReplies();
@@ -473,9 +522,34 @@ export default function Page() {
         // also stamped on the record so the case view can show the sent date
         sentAt: Date.now(),
         status: "escalated" as CaseStatus,
+        // Arm the simulated final outcome exactly once. A saved outcome keeps
+        // its due time untouched, so a refresh never restarts the wait.
+        outcomeDueAt: record.finalOutcome ? record.outcomeDueAt : Date.now() + OUTCOME_DELAY_MS,
       };
       return pushEvent(escalated, "Escalation send confirmed", "escalation");
     });
+  }, [updateCase]);
+
+  // Terminal states after the simulated final outcome. Each runs once: the
+  // status change itself is the one-way latch, and events dedupe by label.
+  const markResolvedFromOutcome = useCallback((id: string) => {
+    updateCase(id, (record) => !record.finalOutcome || record.status === "resolved"
+      ? record
+      : pushEvent(
+          { ...record, status: "resolved" as CaseStatus },
+          "Case marked resolved (simulated)",
+          "outcome",
+        ));
+  }, [updateCase]);
+
+  const saveOutcomeGuidance = useCallback((id: string) => {
+    updateCase(id, (record) => !record.finalOutcome || record.status === "final-guidance"
+      ? record
+      : pushEvent(
+          { ...record, status: "final-guidance" as CaseStatus },
+          "Final guidance provided",
+          "outcome",
+        ));
   }, [updateCase]);
 
   const discardCurrentCase = useCallback(() => {
@@ -522,7 +596,9 @@ export default function Page() {
   const conversationCase = activeCase;
   const selectedDetails = caseDetails ?? (activeCase ? detailsFor(activeCase) : null);
 
-  const repliesAttentionCount = cases.filter((c) => Boolean(c.companyReply && !c.companyReply.handled)).length;
+  // The sidebar badge: unhandled replies plus cases whose simulated final
+  // outcome arrived and has not been closed out yet.
+  const repliesAttentionCount = cases.filter((c) => (Boolean(c.companyReply && !c.companyReply.handled) && c.status !== "outcome-needs-attention") || c.status === "outcome-needs-attention").length;
 
   return (
     <>
@@ -578,7 +654,7 @@ export default function Page() {
           <Cases cases={cases} onOpenCase={openSavedCase} onStartCase={startConversation} onGoToReplies={() => setScreen("replies")} onDeleteCase={deleteSavedCase} focusCaseId={focusCaseId} onClearFocus={clearFocusCase} />
         )}
         {screen === "replies" && (
-          <Replies cases={cases} onStartCase={startConversation} onOpenCase={openCaseDetails} onSaveReply={saveReply} onDecision={decideNextAction} onSaveEscalationDraft={saveEscalationDraft} onEscalationSent={confirmEscalationSent} />
+          <Replies cases={cases} onStartCase={startConversation} onSaveReply={saveReply} onDecision={decideNextAction} onSaveEscalationDraft={saveEscalationDraft} onEscalationSent={confirmEscalationSent} onOutcomeResolved={markResolvedFromOutcome} onGuidanceSaved={saveOutcomeGuidance} />
         )}
         {screen === "learn" && (
           <Learn
@@ -609,6 +685,7 @@ export default function Page() {
             initialEvidence={activeCase.evidenceFiles}
             initialStatus={activeCase.status}
             initialSentAt={activeCase.sentAt}
+            events={activeCase.events}
             userName={profile ? `${profile.firstName} ${profile.lastName}`.trim() : undefined}
             onSaveDraft={saveDraft}
             onEvidenceChange={saveEvidence}

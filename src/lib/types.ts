@@ -16,7 +16,10 @@ export type CaseStatus =
   | "waiting-for-response"
   | "response-needs-attention"
   | "response-reviewed"
-  | "escalated";
+  | "escalated"
+  | "outcome-needs-attention"
+  | "resolved"
+  | "final-guidance";
 
 export interface EscalationRecord {
   draft: ComplaintDraft; // recipient, subject, body — user-editable before sending
@@ -25,6 +28,19 @@ export interface EscalationRecord {
   // Once sentConfirmed, this escalation is finished: no new escalation can start.
   sentAt?: number;
   sentConfirmed?: boolean;
+}
+
+export type OutcomeVerdict = "resolved" | "unresolved";
+
+// The one simulated final outcome per escalated complaint. Clearly labelled
+// as a demo where it is shown; guidance is only filled when unresolved.
+export interface FinalOutcomeRecord {
+  replyText: string;
+  meaning: string;
+  verdict: OutcomeVerdict;
+  guidance: string[];
+  addedAt: number;
+  isSimulated?: boolean;
 }
 
 export type CaseEventKind = "complaint" | "reply" | "decision" | "escalation" | "outcome";
@@ -108,6 +124,10 @@ export interface Case {
   // One escalation per complaint: the record exists only after escalation
   // drafting started, and once sentConfirmed the action is unavailable.
   escalation?: EscalationRecord;
+  // One simulated final outcome per escalated complaint. The wait is armed
+  // exactly once when escalation send is confirmed, cleared once saved.
+  finalOutcome?: FinalOutcomeRecord;
+  outcomeDueAt?: number;
   events?: CaseTimelineEvent[];
   createdAt: number;
   updatedAt?: number;

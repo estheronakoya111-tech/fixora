@@ -18,7 +18,7 @@ const RANGES = [7, 14, 30] as const;
 const ORANGE = "#E86A2A";
 const GREEN = "#5F8A6C";
 // There is no "sent at" field yet, so a sent case is dated by its last update.
-const SENT: CaseStatus[] = ["waiting-for-response", "response-needs-attention", "response-reviewed", "escalated"];
+const SENT: CaseStatus[] = [ "waiting-for-response", "response-needs-attention", "response-reviewed", "escalated", "outcome-needs-attention", "resolved", "final-guidance" ];
 
 type Point = { label: string; started: number | null; sent: number | null };
 

@@ -11,11 +11,12 @@ type View = { name: "list" } | { name: "paste"; id: string } | { name: "read"; i
 type RepliesProps = {
   cases: StoredCase[];
   onStartCase: () => void;
-  onOpenCase: (caseId: string) => void;
   onSaveReply: (caseId: string, reply: CompanyReplyAnalysis) => void;
   onDecision: (caseId: string, action: NextActionChoice) => void;
   onSaveEscalationDraft: (caseId: string, draft: ComplaintDraft) => void;
   onEscalationSent: (caseId: string) => void;
+  onOutcomeResolved: (caseId: string) => void;
+  onGuidanceSaved: (caseId: string) => void;
 };
 
 const BTN3D = "group relative inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-b from-brand to-brand-strong px-5 py-3 font-heading text-sm font-semibold text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.4),0_4px_0_#9A3F12,0_12px_20px_-8px_rgba(232,106,42,0.6)] transition-all before:pointer-events-none before:absolute before:inset-[3px] before:rounded-[9px] before:border before:border-dashed before:border-white/35 hover:-translate-y-px hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.4),0_5px_0_#9A3F12,0_16px_24px_-8px_rgba(232,106,42,0.65)] active:translate-y-[3px] active:shadow-[inset_0_1px_0_rgba(255,255,255,0.3),0_1px_0_#9A3F12,0_4px_8px_-4px_rgba(232,106,42,0.5)] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-brand disabled:cursor-not-allowed disabled:opacity-45";const SOFT3D = "rounded-xl border border-border-strong bg-surface-sunken px-4 py-2.5 text-sm font-medium shadow-[0_3px_0_#D2CFC7,0_8px_14px_-8px_rgba(32,32,30,0.25)] transition-all hover:-translate-y-px hover:bg-border active:translate-y-[2px]";
@@ -59,7 +60,7 @@ async function explain(target: StoredCase, text: string): Promise<Explanation> {
   };
 }
 
-export default function Replies({ cases, onStartCase, onOpenCase, onSaveReply, onDecision, onSaveEscalationDraft, onEscalationSent }: RepliesProps) {
+export default function Replies({ cases, onStartCase, onSaveReply, onDecision, onSaveEscalationDraft, onEscalationSent, onOutcomeResolved, onGuidanceSaved }: RepliesProps) {
   const [view, setView] = useState<View>({ name: "list" });
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
@@ -80,8 +81,9 @@ export default function Replies({ cases, onStartCase, onOpenCase, onSaveReply, o
 
   const waiting = cases.filter((item) => item.status === "waiting-for-response" && !item.companyReply);
   const replies = cases.filter((item) => Boolean(item.companyReply));
-  const attention = replies.filter((item) => !item.companyReply?.handled);
-  const handled = replies.filter((item) => item.companyReply?.handled);
+  const outcomePending = replies.filter((item) => item.status === "outcome-needs-attention");
+  const attention = [...replies.filter((item) => !item.companyReply?.handled), ...outcomePending];
+  const handled = replies.filter((item) => item.companyReply?.handled && item.status !== "outcome-needs-attention");
   const current = view.name === "read" ? replies.find((item) => item.id === view.id) : undefined;
   const target = view.name === "paste" ? waiting.find((item) => item.id === view.id) : undefined;
   // Draft-handoff links, recomputed from the live draft so edits show in Gmail.
@@ -253,7 +255,7 @@ export default function Replies({ cases, onStartCase, onOpenCase, onSaveReply, o
             <p className="mt-1 text-muted">Copy their email and paste it here.</p>
           </div>
         </div>
-        <textarea value={text} onChange={(event) => setText(event.target.value)} rows={10} maxLength={4000} aria-label="Company reply" placeholder="Paste their reply..." className="mt-6 w-full resize-y rounded-2xl bg-surface p-5 text-[15px] leading-7 shadow-card outline-none placeholder:text-subtle focus-visible:ring-2 focus-visible:ring-brand/30" />
+        <textarea value={text} onChange={(event) => setText(event.target.value)} rows={10} maxLength={4000} aria-label="Company reply" placeholder="Paste their reply..." className="mt-6 w-full resize-y rounded-2xl bg-surface p-5 text-[15px] leading-7 shadow-card outline-none placeholder:text-subtle outline-none placeholder:text-subtle" />
         <div className="mt-2 text-xs text-muted">Your reply text and case details are sent to Groq to generate an explanation, then saved in this browser.</div>
         {error && <p role="alert" className="mt-4 rounded-xl bg-danger-soft p-3 text-sm text-danger">{error}</p>}
         <div className="mt-6 flex flex-wrap items-center gap-4">
@@ -279,18 +281,17 @@ export default function Replies({ cases, onStartCase, onOpenCase, onSaveReply, o
           )}
         </div>
         <p className="mt-1 text-muted">{current.details?.issue ?? current.summary?.problem ?? "Saved case"}</p>
-        <section className="mt-6 rounded-2xl bg-surface p-5 shadow-card">
+        <section aria-label="The reply, what it means, and your next step" className="mt-6 rounded-3xl bg-surface p-6 shadow-lift">
           <div className="flex items-center justify-between">
             <h2 className="font-heading text-sm font-semibold text-muted">What the company is saying</h2>
             {current.companyReply.isSimulated && <span className="text-xs text-muted">Simulated message</span>}
           </div>
           <p className="mt-3 whitespace-pre-wrap text-[15px] leading-7">{current.companyReply.replyText}</p>
-        </section>
-        <section className="mt-4 rounded-3xl bg-surface p-6 shadow-lift"><h2 className="font-heading text-base font-semibold">What this means for you</h2><p className="mt-3 text-[15px] leading-7">{current.companyReply.meaning}</p>
+          <div className="mt-6 border-t border-dashed border-border-strong pt-6"><h2 className="font-heading text-base font-semibold">What this means for you</h2><p className="mt-3 text-[15px] leading-7">{current.companyReply.meaning}</p>
           {current.companyReply.unresolved.length > 0 && <><h3 className="mt-6 font-heading text-sm font-semibold text-muted">What they didn&apos;t address</h3><ul className="mt-2 space-y-1.5 text-[15px]">{current.companyReply.unresolved.map((entry) => <li key={entry}>• {entry}</li>)}</ul></>}
-        </section>
+          </div>
 
-        <section aria-label="Choose your next action" className="mt-4 rounded-3xl border border-border-strong bg-surface p-6 shadow-lift">
+          <div className="mt-6 border-t border-dashed border-border-strong pt-6">
           <h2 className="font-heading text-base font-semibold">Choose your next step</h2>
           {current.companyReply.recommendation && !current.companyReply.decision && (
             <p className="mt-2 text-sm leading-6 text-muted">
@@ -325,19 +326,64 @@ export default function Replies({ cases, onStartCase, onOpenCase, onSaveReply, o
           {current.companyReply.options.length > 0 && (
             <><h3 className="mt-6 font-heading text-sm font-semibold text-muted">Fixora&apos;s other suggestions</h3><ul className="mt-2 space-y-2">{current.companyReply.options.map((entry) => <li key={entry} className="rounded-xl bg-surface-muted px-4 py-3 text-[15px]">{entry}</li>)}</ul></>
           )}
-        </section>
-        {current.escalation?.sentConfirmed && (
-          <section className="mt-4 rounded-3xl border-l-4 border-l-brand bg-surface p-6 shadow-card">
+          </div>
+        {current.escalation?.sentConfirmed && !current.finalOutcome && (
+          <div className="mt-6 border-t border-dashed border-border-strong pt-6">
             <h2 className="font-heading text-lg font-semibold">Escalated — awaiting the final outcome</h2>
             <p className="mt-2 text-sm leading-relaxed">
               Your escalation was sent on {formatDate(current.escalation.sentAt)}. A complaint carries only one escalation, so the escalation action is now closed for this case.
               The simulated final outcome — clearly labelled as a demo, not a real company action — arrives here on its own.
             </p>
-          </section>
+            {typeof current.outcomeDueAt === "number" && !current.finalOutcome && (
+              current.outcomeDueAt > now
+                ? <p className="mt-2 text-xs font-medium text-brand-strong">Simulated final outcome due around {new Date(current.outcomeDueAt).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })} · in {Math.max(1, Math.round((current.outcomeDueAt - now) / 1000))}s</p>
+                : <p className="mt-2 text-xs font-medium text-brand-strong">Simulated final outcome arriving…</p>
+            )}
+          </div>
+        )}
+
+        {current.finalOutcome && (
+          <div className="mt-6 border-t border-dashed border-border-strong pt-6">
+            <div className="flex flex-wrap items-center gap-3">
+              <h2 id="outcome" className="font-heading text-base font-semibold">The final outcome</h2>
+              <span className="rounded-full border border-warning/40 bg-warning-soft px-3 py-1 font-heading text-xs font-semibold text-[#8a5a12]">Simulated final outcome (Demo)</span>
+              <span className={`rounded-full px-3 py-1 font-heading text-xs font-semibold ${current.finalOutcome.verdict === "resolved" ? "bg-positive-soft text-positive-strong" : "bg-danger-soft text-danger"}`}>
+                {current.finalOutcome.verdict === "resolved" ? "Resolved in the simulation" : "Still unresolved"}
+              </span>
+            </div>
+            <p className="mt-3 text-[15px] leading-7">{current.finalOutcome.meaning}</p>
+            <div className="mt-3 whitespace-pre-wrap rounded-2xl bg-surface-muted p-4 text-[15px] leading-7">{current.finalOutcome.replyText}</div>
+
+            {current.finalOutcome.guidance.length > 0 && (
+              <>
+                <h3 className="mt-6 font-heading text-sm font-semibold text-muted" id="guidance">What you can still do — final guidance</h3>
+                <ul className="mt-2 space-y-2">{current.finalOutcome.guidance.map((step) => <li key={step} className="rounded-xl bg-surface-muted px-4 py-3 text-[15px]">{step}</li>)}</ul>
+              </>
+            )}
+
+            {current.finalOutcome.verdict === "resolved" && current.status !== "resolved" && (
+              <div className="mt-5 flex flex-wrap items-center gap-3">
+                <button type="button" onClick={() => onOutcomeResolved(current.id)} className={BTN3D}>Mark the complaint resolved</button>
+                <p className="text-xs text-muted">You decide. Marking it resolved closes the case in Fixora; this label is simulated.</p>
+              </div>
+            )}
+            {current.finalOutcome.verdict === "resolved" && current.status === "resolved" && (
+              <p className="mt-5 text-sm font-medium text-positive-strong">Marked resolved on {formatDate(current.finalOutcome.addedAt)} — simulated resolution.</p>
+            )}
+            {current.finalOutcome.verdict !== "resolved" && current.status !== "final-guidance" && (
+              <div className="mt-5 flex flex-wrap items-center gap-3">
+                <button type="button" onClick={() => onGuidanceSaved(current.id)} className={BTN3D}>Save the final guidance</button>
+                <p className="text-xs text-muted">This records the guidance as the end of the workflow for this complaint.</p>
+              </div>
+            )}
+            {current.finalOutcome.verdict !== "resolved" && current.status === "final-guidance" && (
+              <p className="mt-5 text-sm font-medium">Final guidance saved on {formatDate(current.finalOutcome.addedAt)}. This workflow has reached its end point for this complaint.</p>
+            )}
+          </div>
         )}
 
         {current.companyReply.decision?.action === "escalate" && !current.escalation?.sentConfirmed && (
-          <section aria-labelledby="escalate" className="mt-4 rounded-3xl border border-brand/50 bg-surface p-6 shadow-lift">
+          <div className="mt-6 border-t border-dashed border-border-strong pt-6">
             <h2 id="escalate" className="font-heading text-base font-semibold">Escalating this complaint</h2>
             <p className="mt-2 text-sm leading-6 text-muted">
               {current.companyReply.recommendation?.action === "escalate"
@@ -417,10 +463,10 @@ export default function Replies({ cases, onStartCase, onOpenCase, onSaveReply, o
                 </ol>
               </>
             )}
-          </section>
+          </div>
         )}
-        <div className="mt-6 flex flex-wrap items-center gap-3"><button type="button" onClick={() => onOpenCase(current.id)} className={SOFT3D}>Open case</button></div>
-        <p className="mt-4 text-xs text-muted">This explanation may be wrong and isn&apos;t legal advice. Check it against what the company wrote.</p>
+        </section>
+        <p className="mt-6 text-xs text-muted">This explanation may be wrong and isn&apos;t legal advice. Check it against what the company wrote.</p>
       </>}
     </main>
 

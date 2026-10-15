@@ -6,8 +6,8 @@ import SearchPopup, { type SearchMatch } from "@/components/SearchPopup";
 import { FixoraLogo } from "@/components/logo/FixoraLogo";
 import type { Case as StoredCase } from "@/lib/types";
 
-type Status = "reply" | "progress" | "draft" | "waiting" | "done";
-type Filter = "all" | "needs" | "waiting" | "done";
+type Status = "reply" | "progress" | "draft" | "waiting" | "escalated" | "done";
+type Filter = "all" | "needs" | "waiting" | "escalated" | "done";
 type Sort = "needs" | "newest" | "oldest";
 const SORTS: Record<Sort, string> = {
   needs: "Needs you first",
@@ -32,6 +32,7 @@ const STATUS: Record<Status, { label: string; edge: string; badge: string; dot: 
   progress: { label: "In progress", edge: "bg-subtle", badge: "bg-surface-sunken text-muted", dot: "bg-subtle", priority: 1 },
   draft: { label: "Ready to send", edge: "bg-brand", badge: "bg-brand-soft text-brand-700", dot: "bg-brand", priority: 1 },
   waiting: { label: "Waiting for reply", edge: "bg-warning", badge: "bg-warning-soft text-[#8a5a12]", dot: "bg-warning", priority: 2 },
+  escalated: { label: "Escalated", edge: "bg-brand", badge: "bg-warning-soft text-[#8a5a12]", dot: "bg-brand", priority: 2 },
   done: { label: "Done", edge: "bg-border-strong", badge: "bg-surface-sunken text-muted", dot: "bg-subtle", priority: 3 },
 };
 
@@ -40,7 +41,8 @@ const TRACK = ["Understand", "Draft", "Sent", "Reply"];
 const FILTERS: { id: Filter; label: string; match: (s: Status) => boolean }[] = [
   { id: "all", label: "All", match: () => true },
   { id: "needs", label: "Needs you", match: (s) => s === "reply" || s === "draft" || s === "progress" },
-  { id: "waiting", label: "Waiting", match: (s) => s === "waiting" },
+  { id: "waiting", label: "Waiting", match: (s) => s === "waiting" || s === "escalated" },
+  { id: "escalated", label: "Escalated", match: (s) => s === "escalated" },
   { id: "done", label: "Done", match: (s) => s === "done" },
 ];
 
@@ -51,9 +53,11 @@ function toCaseItem(record: StoredCase): CaseItem {
       ? "draft"
       : record.status === "waiting-for-response"
         ? "waiting"
-      : record.status === "response-needs-attention"
+      : record.status === "response-needs-attention" || record.status === "outcome-needs-attention"
         ? "reply"
-        : "done"; // waiting-for-response upper stages and escalated both read as done/waiting states below
+        : record.status === "escalated"
+          ? "escalated"
+          : "done"; // response-reviewed, resolved and final-guidance all read as done below
   const progress = status === "progress" ? 0 : status === "draft" ? 1 : status === "waiting" ? 2 : 3;
   const next = status === "progress"
     ? "Continue the conversation"
@@ -62,10 +66,16 @@ function toCaseItem(record: StoredCase): CaseItem {
       : status === "waiting"
         ? "Simulated demo reply arrives on its own shortly"
         : status === "reply"
-          ? "Review the company reply"
+          ? record.status === "outcome-needs-attention"
+            ? "Review the simulated final outcome"
+            : "Review the company reply"
           : record.status === "escalated"
             ? "Escalated — awaiting the final outcome"
-            : "Open this completed case";
+            : record.status === "resolved"
+              ? "Resolved (simulated) — case closed"
+              : record.status === "final-guidance"
+                ? "Closed with final guidance"
+                : "Open this completed case";
   const timestamp = record.updatedAt ?? record.createdAt;
   return {
     id: record.id,
