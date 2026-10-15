@@ -5,152 +5,52 @@ import { motion, useReducedMotion } from "framer-motion";
 import Reveal from "@/components/Reveal";
 import SearchPopup, { type SearchMatch } from "@/components/SearchPopup";
 import { FixoraLogo } from "@/components/logo/FixoraLogo";
+import ComplaintChart from "@/components/ui/DashboardChart";
 import type { Case as SavedCase, CaseStatus } from "@/lib/types";
 
-const STATUS: Record<CaseStatus, { label: string; badge: string }> = {
-  "in-progress": { label: "In progress", badge: "bg-surface-sunken text-muted" },
-  "ready-to-send": { label: "Ready to send", badge: "bg-brand-soft text-brand-700" },
-  "waiting-for-response": { label: "Waiting for reply", badge: "bg-positive-soft text-positive-strong" },
-  "response-needs-attention": { label: "Reply needs attention", badge: "bg-brand-soft text-brand-700" },
-  "response-reviewed": { label: "Reply reviewed", badge: "bg-positive-soft text-positive-strong" },
+const STATUS: Record<CaseStatus, { label: string; badge: string; bar: string }> = {
+  "in-progress": { label: "In progress", badge: "bg-surface-sunken text-muted", bar: "#A19E97" },
+  "ready-to-send": { label: "Ready to send", badge: "bg-brand-soft text-brand-700", bar: "#E86A2A" },
+  "waiting-for-response": { label: "Waiting for reply", badge: "bg-positive-soft text-positive-strong", bar: "#4F6F8A" },
+  "response-needs-attention": { label: "Reply needs attention", badge: "bg-brand-soft text-brand-700", bar: "#C98A2B" },
+  "response-reviewed": { label: "Reply reviewed", badge: "bg-positive-soft text-positive-strong", bar: "#5F8A6C" },
+  "escalated": { label: "Escalated", badge: "bg-warning-soft text-[#8a5a12]", bar: "#B06A1F" },
 };
-
-const PHASES = [
-  { title: "Discover", hint: "Details confirmed" },
-  { title: "Prove", hint: "Evidence added" },
-  { title: "Review", hint: "Check your letter" },
-  { title: "Solve", hint: "Send and follow up" },
-];
-
-// Navigation is shared by the app shell in AppSidebar.
 
 const BTN3D =
   "group relative inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-b from-brand to-brand-strong px-5 py-3 font-heading text-sm font-semibold text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.4),0_4px_0_#9A3F12,0_12px_20px_-8px_rgba(232,106,42,0.6)] transition-all before:pointer-events-none before:absolute before:inset-[3px] before:rounded-[9px] before:border before:border-dashed before:border-white/35 hover:-translate-y-px hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.4),0_5px_0_#9A3F12,0_16px_24px_-8px_rgba(232,106,42,0.65)] active:translate-y-[3px] active:shadow-[inset_0_1px_0_rgba(255,255,255,0.3),0_1px_0_#9A3F12,0_4px_8px_-4px_rgba(232,106,42,0.5)] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-brand";
 
-function Badge({ status }: { status: CaseStatus }) {
-  const s = STATUS[status];
-  return (
-    <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium ${s.badge}`}>
-      {s.label}
-    </span>
-  );
-}
+const DAY = 86400000;
+const MAX_HOME_CASES = 4;
+const NEEDS: CaseStatus[] = ["in-progress", "ready-to-send", "response-needs-attention"];
 
-function Check() {
+const stamp = (c: SavedCase) => c.updatedAt ?? c.createdAt;
+
+function Icon({ d, className = "h-5 w-5" }: { d: string; className?: string }) {
   return (
-    <svg viewBox="0 0 16 16" className="h-3.5 w-3.5" fill="none" aria-hidden>
-      <path d="M3.5 8.5l3 3 6-7" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+    <svg viewBox="0 0 24 24" className={className} fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d={d} />
     </svg>
   );
 }
 
-function phaseStyles(i: number, active: number) {
-  const state = i < active ? "done" : i === active ? "active" : "locked";
-  return {
-    state,
-    shell: {
-      active: "border-brand-400 bg-gradient-to-br from-brand to-brand-strong text-white shadow-brand",
-      done: "border-positive/30 bg-surface shadow-card",
-      locked: "border-dashed border-border-strong bg-surface-muted text-muted",
-    }[state],
-    badge: {
-      active: "bg-white/20 text-white",
-      done: "bg-positive text-white",
-      locked: "bg-surface-sunken text-muted",
-    }[state],
-  };
+const ICON = {
+  edit: "M12 20h9M16.5 3.5a2.1 2.1 0 013 3L7 19l-4 1 1-4z",
+  clock: "M12 7v5l3 2M21 12a9 9 0 11-18 0 9 9 0 0118 0z",
+  check: "M5 13l4 4L19 7",
+  arrow: "M5 12h14M13 6l6 6-6 6",
+};
+
+function Badge({ status }: { status: CaseStatus }) {
+  const s = STATUS[status];
+  return <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium ${s.badge}`}>{s.label}</span>;
 }
 
-function PhaseBody({ i, active }: { i: number; active: number }) {
-  const { state, badge } = phaseStyles(i, active);
-  return (
-    <>
-      <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-semibold ${badge}`}>
-        {state === "done" ? <Check /> : i + 1}
-      </span>
-      <span className="min-w-0">
-        <span className="block font-heading text-sm font-semibold">{PHASES[i].title}</span>
-        <span className={`block truncate text-xs ${state === "active" ? "text-white/85" : "text-muted"}`}>{PHASES[i].hint}</span>
-      </span>
-    </>
-  );
-}
-
-const CW = 200;
-const CH = 52;
-const LEFT = [0, 80, 160, 240];
-const TOP = [0, 70, 140, 210];
-
-function Hub({ active }: { active: number }) {
-  return (
-    <>
-      <div className="hidden justify-center py-10 sm:flex" style={{ perspective: 1100 }}>
-        <div
-          className="relative"
-          style={{ width: 440, height: 262, transform: "rotateX(16deg) rotateY(-12deg)", transformStyle: "preserve-3d" }}
-        >
-          <div
-            aria-hidden
-            className="absolute -inset-6 rounded-3xl bg-surface-muted"
-            style={{
-              transform: "translateZ(-50px)",
-              backgroundImage: "radial-gradient(rgba(32,32,30,0.12) 1px, transparent 1px)",
-              backgroundSize: "20px 20px",
-              boxShadow: "0 40px 60px -30px rgba(32,32,30,0.22)",
-            }}
-          />
-          <svg aria-hidden viewBox="0 0 440 262" className="absolute inset-0 h-full w-full" fill="none" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            {[0, 1, 2].map((i) => {
-              const sx = LEFT[i] + 130;
-              const sy = TOP[i] + CH;
-              const ex = LEFT[i + 1] + 60;
-              const ey = TOP[i + 1];
-              const color = i < active ? "#E86A2A" : "#D2CFC7";
-              return (
-                <g key={i} stroke={color}>
-                  <path d={`M${sx} ${sy} C${sx} ${sy + 10} ${ex} ${ey - 10} ${ex} ${ey - 3}`} />
-                  <path d={`M${ex - 4} ${ey - 8} L${ex} ${ey - 2} L${ex + 4} ${ey - 8}`} />
-                </g>
-              );
-            })}
-          </svg>
-          {PHASES.map((p, i) => (
-            <div
-              key={p.title}
-              className={`absolute flex items-center gap-3 rounded-2xl border px-4 ${phaseStyles(i, active).shell}`}
-              style={{
-                left: LEFT[i],
-                top: TOP[i],
-                width: CW,
-                height: CH,
-                transform: `translateZ(${i * 10 + (i === active ? 50 : i < active ? 20 : 0)}px)`,
-              }}
-            >
-              <PhaseBody i={i} active={active} />
-            </div>
-          ))}
-        </div>
-      </div>
-
-      <ol className="space-y-3 py-6 sm:hidden">
-        {PHASES.map((p, i) => (
-          <li
-            key={p.title}
-            style={{ marginLeft: i * 14 }}
-            className={`flex items-center gap-3 rounded-2xl border px-4 py-3 ${phaseStyles(i, active).shell}`}
-          >
-            <PhaseBody i={i} active={active} />
-          </li>
-        ))}
-      </ol>
-    </>
-  );
-}
-
-const MAX_HOME_CASES = 4;
+/* -------------------------------- Dashboard -------------------------------- */
 
 export default function Dashboard({
   firstName = "there",
+  startDate,
   onStartCase,
   cases,
   onOpenCase,
@@ -158,247 +58,191 @@ export default function Dashboard({
   onCases,
 }: {
   firstName?: string;
+  /** Sign-up time in ms (profile.createdAt). The chart begins on this day. */
+  startDate?: number;
   onStartCase?: () => void;
   cases: SavedCase[];
   onOpenCase: (id: string) => void;
   onViewCase?: (id: string) => void;
   onCases?: () => void;
 }) {
+  const reduce = useReducedMotion();
   const [query, setQuery] = useState("");
-  const reduceMotion = useReducedMotion();
+  const [now] = useState(() => Date.now());
+
   const visibleCases = useMemo(() => {
-    const normalized = query.trim().toLowerCase();
-    const PRIORITY: Record<CaseStatus, number> = {
-      "response-needs-attention": 0,
-      "ready-to-send": 1,
-      "in-progress": 2,
-      "waiting-for-response": 3,
-      "response-reviewed": 4,
-    };
+    const q = query.trim().toLowerCase();
+    const PRIORITY: Record<CaseStatus, number> = { "response-needs-attention": 0, "ready-to-send": 1, "in-progress": 2, "waiting-for-response": 3, "response-reviewed": 4, "escalated": 5 };
     return [...cases]
-      .filter((item) => !normalized || [item.company, item.details?.issue, item.rawStory].some((value) => value?.toLowerCase().includes(normalized)))
-      .sort((a, b) => (PRIORITY[a.status] - PRIORITY[b.status]) || ((b.updatedAt ?? b.createdAt) - (a.updatedAt ?? a.createdAt)));
+      .filter((c) => !q || [c.company, c.details?.issue, c.rawStory].some((v) => v?.toLowerCase().includes(q)))
+      .sort((a, b) => PRIORITY[a.status] - PRIORITY[b.status] || stamp(b) - stamp(a));
   }, [cases, query]);
-  const selectedCase = visibleCases[0] ?? null;
-  const activePhase = selectedCase?.status === "in-progress" ? 0 : selectedCase?.status === "ready-to-send" ? 2 : selectedCase ? 3 : 0;
-  const actionCount = cases.filter((item) => ["in-progress", "ready-to-send", "response-needs-attention"].includes(item.status)).length;
-  const evidenceCount = cases.reduce((total, item) => total + item.evidenceFiles.length, 0);
-  const stats = [
-    { label: "All cases", value: cases.length, detail: cases.length === 1 ? "1 case in your workspace" : "Saved in your workspace", accent: "bg-brand" },
-    { label: "Needs your input", value: actionCount, detail: actionCount ? "Your next move is ready" : "Nothing waiting on you", accent: "bg-brand" },
-    { label: "In follow-up", value: cases.filter((item) => item.status === "waiting-for-response").length, detail: "Waiting for company replies", accent: "bg-positive" },
-    { label: "Evidence saved", value: evidenceCount, detail: evidenceCount ? "Files attached to cases" : "Add proof when you have it", accent: "bg-foreground" },
-  ];
-  const activity = visibleCases.slice(0, 3).map((item) => ({
-    id: item.id,
-    text: item.status === "ready-to-send" ? "Complaint ready to send" : item.status === "waiting-for-response" ? "Waiting for company reply" : item.status === "response-reviewed" ? "Reply reviewed" : "Case in progress",
-    company: item.company ?? "Company to confirm",
-    when: new Date(item.updatedAt ?? item.createdAt).toLocaleDateString(undefined, { month: "short", day: "numeric" }),
-  }));
-  const nextStep = selectedCase?.status === "response-needs-attention"
-    ? "Company replied! Review Fixora's explanation and possible next steps."
-    : selectedCase?.status === "waiting-for-response"
-      ? "Check the latest status for this case while waiting for a reply."
-      : selectedCase?.status === "ready-to-send"
-        ? "Review your complaint before sending it."
-        : selectedCase?.status === "response-reviewed"
-          ? "Your latest company reply has been reviewed."
-          : "Continue the conversation and fill in any missing details.";
-  const nextAction = selectedCase?.status === "response-needs-attention"
-    ? "Review company reply"
-    : selectedCase?.status === "in-progress"
-      ? "Continue conversation"
-      : selectedCase?.status === "waiting-for-response"
-        ? "View case"
-        : "Open case";
+
+  const selected = visibleCases[0] ?? null;
   const openCase = (id: string) => (onViewCase ?? onOpenCase)(id);
-  const selectedUpdated = selectedCase
-    ? new Date(selectedCase.updatedAt ?? selectedCase.createdAt).toLocaleDateString(undefined, { month: "short", day: "numeric" })
-    : null;
-  const selectedEvidence = selectedCase?.evidenceFiles.length ?? 0;
-  const selectedMessages = selectedCase?.conversation?.length ?? 0;
+
+  const nextStep =
+    selected?.status === "response-needs-attention" ? "A company replied. Review Fixora's explanation and your next steps."
+    : selected?.status === "waiting-for-response" ? "Waiting for a reply — a simulated demo reply arrives on its own about a minute after sending."
+    : selected?.status === "ready-to-send" ? "Your complaint is ready. Review it before sending."
+    : selected?.status === "response-reviewed" ? "Your latest company reply has been reviewed."
+    : selected?.status === "escalated" ? "Your escalation is away — the simulated final outcome arrives on the Replies screen."
+    : "Continue the conversation and fill in any missing details.";
+  const nextAction =
+    selected?.status === "response-needs-attention" ? "Review reply"
+    : selected?.status === "in-progress" ? "Continue"
+    : "Open case";
+
+  const week = now - 7 * DAY;
+  const groups = [
+    { label: "Needs you", icon: ICON.edit, color: "#E86A2A", tint: "bg-brand-soft text-brand-700", list: cases.filter((c) => NEEDS.includes(c.status)) },
+    { label: "Waiting for reply", icon: ICON.clock, color: "#4F6F8A", tint: "bg-[#E8EEF3] text-[#4F6F8A]", list: cases.filter((c) => c.status === "waiting-for-response") },
+    { label: "Reply reviewed", icon: ICON.check, color: "#5F8A6C", tint: "bg-positive-soft text-positive-strong", list: cases.filter((c) => c.status === "response-reviewed") },
+    { label: "Escalated", icon: ICON.arrow, color: "#B06A1F", tint: "bg-warning-soft text-[#8a5a12]", list: cases.filter((c) => c.status === "escalated") },
+  ];
+  const reviewed = groups[2].list.length;
+  const pct = cases.length ? reviewed / cases.length : 0;
+  const evidenceCount = cases.reduce((t, c) => t + c.evidenceFiles.length, 0);
+
+
+  const statusCounts = (Object.keys(STATUS) as CaseStatus[]).map((s) => ({ s, n: cases.filter((c) => c.status === s).length }));
+  const statusMax = Math.max(1, ...statusCounts.map((x) => x.n));
+
   const searchMatches = useMemo<SearchMatch[]>(() => {
-    const normalized = query.trim().toLowerCase();
-    if (!normalized) return [];
+    const q = query.trim().toLowerCase();
+    if (!q) return [];
     return cases
-      .filter((item) => [item.company, item.details?.issue, item.rawStory].some((value) => value?.toLowerCase().includes(normalized)))
+      .filter((c) => [c.company, c.details?.issue, c.rawStory].some((v) => v?.toLowerCase().includes(q)))
       .slice(0, 6)
-      .map((item) => ({
-        id: item.id,
-        title: item.company ?? "Company to confirm",
-        detail: (item.details?.issue ?? item.rawStory ?? "").slice(0, 90) || null,
-        amount: item.details?.amount ?? null,
-        status: STATUS[item.status].label,
-        statusClass: STATUS[item.status].badge,
+      .map((c) => ({
+        id: c.id,
+        title: c.company ?? "Company to confirm",
+        detail: (c.details?.issue ?? c.rawStory ?? "").slice(0, 90) || null,
+        amount: c.details?.amount ?? null,
+        status: STATUS[c.status].label,
+        statusClass: STATUS[c.status].badge,
       }));
   }, [cases, query]);
+
+  const rise = (i: number) => ({
+    initial: reduce ? false : { opacity: 0, y: 14 },
+    animate: { opacity: 1, y: 0 },
+    transition: { duration: 0.4, delay: i * 0.07, ease: "easeOut" as const },
+  });
 
   return (
     <div className="min-h-dvh text-foreground">
       <div className="min-w-0 flex-1">
         <header className="flex items-center gap-3 px-5 py-4 md:px-8 md:py-5">
-          <div className="md:hidden">
-            <FixoraLogo size="sm" />
-          </div>
+          <div className="md:hidden"><FixoraLogo size="sm" /></div>
           <div className="ml-auto hidden max-w-md flex-1 sm:block md:ml-0">
             <SearchPopup query={query} matches={searchMatches} total={visibleCases.length} onQuery={setQuery} onPick={openCase} />
           </div>
           <div className="ml-auto flex items-center gap-3">
-            <button type="button" onClick={onStartCase} className={`${BTN3D} max-sm:rounded-lg max-sm:px-3 max-sm:py-2 max-sm:text-xs max-sm:gap-1.5`}>
-              <span aria-hidden className="flex h-5 w-5 items-center justify-center rounded-full bg-white/25 text-sm leading-none max-sm:h-4 max-sm:w-4 max-sm:text-[11px]">
-                +
-              </span>
+            <button type="button" onClick={onStartCase} className={`${BTN3D} max-sm:gap-1.5 max-sm:rounded-lg max-sm:px-3 max-sm:py-2 max-sm:text-xs`}>
+              <span aria-hidden className="flex h-5 w-5 items-center justify-center rounded-full bg-white/25 text-sm leading-none max-sm:h-4 max-sm:w-4 max-sm:text-[11px]">+</span>
               Start a case
             </button>
           </div>
         </header>
 
-        {/* Search has its own row on small screens so the header does not feel cramped. */}
         <div className="bg-background px-5 pb-3 pt-1 sm:hidden">
           <SearchPopup query={query} matches={searchMatches} total={visibleCases.length} onQuery={setQuery} onPick={openCase} />
         </div>
 
         <main className="mx-auto w-full max-w-7xl px-5 pb-28 pt-4 md:px-8 md:pb-12">
-          <div className="flex flex-wrap items-end justify-between gap-4">
-            <div>
-              <p className="font-body text-[11px] font-semibold uppercase tracking-[0.18em] text-positive-strong">Your case workspace</p>
-              <h1 className="mt-2 font-heading text-3xl font-semibold tracking-tight sm:text-4xl">Hey {firstName}.</h1>
-            </div>
-            <div className="hidden items-center gap-3 rounded-2xl border border-border bg-surface px-4 py-3 shadow-soft sm:flex">
-              <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-positive-soft text-positive-strong" aria-hidden>✓</span>
-              <div><p className="text-xs font-semibold text-foreground">Progress is saved</p><p className="mt-0.5 text-xs text-muted">Only you decide what gets sent.</p></div>
-            </div>
-          </div>
-          <p className="mt-1 text-base text-muted">{cases.length ? "Here’s where your cases stand." : "Start a case to get a clear next step."}</p>
-
-          <Reveal className="mt-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
-            {stats.map((s, i) => (
-              <motion.div
-                key={s.label}
-                initial={reduceMotion ? false : { opacity: 0, y: 12 }}
-                animate={reduceMotion ? undefined : { opacity: 1, y: 0 }}
-                transition={{ duration: 0.4, delay: i * 0.06, ease: "easeOut" }}
-                whileHover={reduceMotion ? undefined : { y: -3 }}
-                className="group relative overflow-hidden rounded-2xl border border-border/70 bg-surface p-4 shadow-card"
-              >
-                <span className={`absolute inset-x-0 top-0 h-1 ${s.accent}`} />
-                <div className="flex items-start justify-between gap-3"><p className="text-xs font-medium text-muted">{s.label}</p><span className={`mt-0.5 h-2 w-2 rounded-full ${s.accent} transition-transform duration-300 group-hover:scale-150`} /></div>
-                <p className="mt-3 font-heading text-3xl font-semibold tracking-tight">{s.value}</p>
-                <p className="mt-1 truncate text-xs text-muted">{s.detail}</p>
-              </motion.div>
-            ))}
-          </Reveal>
-
-          <Reveal className="mt-6 grid gap-4 lg:grid-cols-[1fr_280px]">
-            <section aria-labelledby="hub" className="relative overflow-hidden rounded-3xl border border-border/70 bg-surface p-5 shadow-lift sm:p-6">
-              <div aria-hidden className="absolute -right-16 -top-16 h-40 w-40 rounded-full bg-brand-soft/70 blur-3xl" />
-              <div className="flex items-start justify-between gap-4">
-                <div className="min-w-0">
-                  <h2 id="hub" className="truncate font-heading text-lg font-semibold">{selectedCase?.company ?? (selectedCase ? "Company to confirm" : "Your case journey" )}{selectedCase?.details?.amount ? " · " + selectedCase.details.amount : ""}</h2>
-                  <p className="line-clamp-2 text-sm text-muted">{selectedCase?.details?.issue ?? selectedCase?.rawStory ?? "Your case progress will appear here."}</p>
-                </div>
-                {selectedCase && <Badge status={selectedCase.status} />}
-              </div>
-              {selectedCase && (
-                <div className="relative mt-4 flex flex-wrap gap-2 text-xs text-muted">
-                  <span className="rounded-full bg-surface-sunken px-3 py-1.5">{selectedEvidence} evidence item{selectedEvidence === 1 ? "" : "s"}</span>
-                  <span className="rounded-full bg-surface-sunken px-3 py-1.5">{selectedMessages} conversation note{selectedMessages === 1 ? "" : "s"}</span>
-                  <span className="rounded-full bg-surface-sunken px-3 py-1.5">Updated {selectedUpdated}</span>
-                </div>
-              )}
-              <Hub active={activePhase} />
-            </section>
-
-            <div className="flex flex-col gap-4">
-              <section aria-labelledby="next" className="rounded-3xl bg-foreground p-5 text-white shadow-lift">
-                <h2 id="next" className="font-heading text-sm font-semibold text-white/65">
-                  Next step
-                </h2>
-                <p className="mt-2 font-heading text-lg font-semibold leading-snug">{selectedCase ? nextStep : "Start your first complaint."}</p>
-                <p className="mt-1 text-sm text-white/65">{selectedCase ? "Your progress is saved in this browser." : "Your cases will be saved in this browser."}</p>
-                <button type="button" onClick={() => selectedCase ? openCase(selectedCase.id) : onStartCase?.()} className={`${BTN3D} mt-5 w-full`}>
-                  {selectedCase ? nextAction : "Start a case"}
-                  <span aria-hidden className="transition-transform group-hover:translate-x-0.5">
-                    →
-                  </span>
+          <h1 className="font-heading text-3xl font-semibold tracking-tight sm:text-4xl">Hey {firstName}.</h1>
+          <p className="mt-1 text-base text-muted">
+            {!cases.length ? (
+              "Start a case to get a clear next step."
+            ) : selected ? (
+              <>
+                {nextStep}{" "}
+                <button type="button" onClick={() => openCase(selected.id)} className="font-medium text-brand-strong hover:underline">
+                  {nextAction} →
                 </button>
-              </section>
-              <section aria-labelledby="deadlines" className="rounded-3xl border border-border/70 bg-surface p-5 shadow-card">
-                <h2 id="deadlines" className="font-heading text-sm font-semibold text-muted">
-                  What to expect
-                </h2>
-                <p className="mt-2 text-sm leading-relaxed">Your complaint and progress stay available here on this device. You decide when to send anything.</p>
-              </section>
-            </div>
-          </Reveal>
+              </>
+            ) : (
+              "No cases match your search."
+            )}
+          </p>
 
-          <Reveal>
-          <section aria-labelledby="cases" className="mt-8">
-            <h2 id="cases" className="font-heading text-lg font-semibold">
-              Your cases
-            </h2>
-            <div className="mt-3 overflow-hidden rounded-2xl bg-surface shadow-card">
-              <div className="overflow-x-auto">
-              <table className="w-full text-left text-sm">
-                <thead>
-                  <tr className="text-xs text-muted">
-                    <th className="px-5 py-3 font-medium">Company</th>
-                    <th className="hidden px-5 py-3 font-medium sm:table-cell">Issue</th>
-                    <th className="px-5 py-3 font-medium">Status</th>
-                    <th className="hidden px-5 py-3 font-medium lg:table-cell">Updated</th>
-                    <th className="px-5 py-3 text-right font-medium">Amount</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {visibleCases.slice(0, MAX_HOME_CASES).map((c) => (
-                    <tr key={c.id} className="transition-colors hover:bg-surface-muted">
-                      <td className="px-5 py-4 font-heading font-semibold">
-                        <button type="button" onClick={() => openCase(c.id)} className="text-left hover:text-brand-strong">{c.company ?? "Company to confirm"}</button>
-                      </td>
-                      <td className="hidden px-5 py-4 text-muted sm:table-cell">{c.details?.issue ?? (c.rawStory || "Details in progress")}</td>
-                      <td className="px-5 py-4">
-                        <Badge status={c.status} />
-                      </td>
-                      <td className="hidden px-5 py-4 text-muted lg:table-cell">{new Date(c.updatedAt ?? c.createdAt).toLocaleDateString(undefined, { month: "short", day: "numeric" })}</td>
-                      <td className="px-5 py-4 text-right">{c.details?.amount ?? "—"}</td>
-                    </tr>
-                  ))}
-                  {!visibleCases.length && (
-                    <tr><td colSpan={5} className="px-5 py-10 text-center text-sm text-muted">{cases.length ? "No cases match your search." : "Your cases will appear here after you start one."}</td></tr>
-                  )}
-                  {visibleCases.length > MAX_HOME_CASES && (
-                    <tr>
-                      <td colSpan={5} className="px-5 py-3 text-center">
-                        <button type="button" onClick={onCases} className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium text-brand-strong transition-colors hover:bg-brand-soft focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand">
-                          See more cases
-                          <span aria-hidden>→</span>
-                        </button>
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
+          <motion.section {...rise(0)} aria-label="Case summary" className="mt-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
+            {groups.map((g) => {
+              const recent = g.list.filter((c) => stamp(c) >= week).length;
+              return (
+                <div key={g.label} className="relative overflow-hidden rounded-2xl border border-border/70 bg-surface p-4 pb-5 shadow-card sm:p-5">
+                  <span className={`flex h-9 w-9 items-center justify-center rounded-xl ${g.tint}`}><Icon d={g.icon} /></span>
+                  <p className="mt-3 text-xs font-medium text-muted sm:text-sm">{g.label}</p>
+                  <p className="mt-1 font-heading text-3xl font-semibold tracking-tight sm:text-4xl">{g.list.length}</p>
+                  {recent > 0 && <span className={`mt-2 inline-block rounded-full px-2 py-0.5 text-[11px] font-semibold ${g.tint}`}>+{recent} this week</span>}
+                  <motion.span aria-hidden className="absolute inset-x-4 bottom-0 h-1 origin-left rounded-full sm:inset-x-5" style={{ background: g.color }} initial={reduce ? false : { scaleX: 0 }} animate={{ scaleX: 1 }} transition={{ duration: 0.6, delay: 0.3 }} />
+                </div>
+              );
+            })}
+
+            <div className="flex flex-col items-center justify-center rounded-2xl border border-border/70 bg-surface p-4 text-center shadow-card sm:p-5">
+              <div className="relative h-20 w-20 sm:h-24 sm:w-24">
+                <svg viewBox="0 0 100 100" className="h-full w-full -rotate-90" aria-hidden>
+                  <circle cx="50" cy="50" r="42" fill="none" stroke="#EFEDE7" strokeWidth="10" />
+                  <motion.circle cx="50" cy="50" r="42" fill="none" stroke="#5F8A6C" strokeWidth="10" strokeLinecap="round" initial={reduce ? false : { pathLength: 0 }} animate={{ pathLength: pct }} transition={{ duration: 0.9, ease: "easeOut" }} />
+                </svg>
+                <p className="absolute inset-0 flex items-center justify-center font-heading text-lg font-semibold sm:text-xl">{cases.length ? `${Math.round(pct * 100)}%` : "—"}</p>
               </div>
+              <p className="mt-2 text-xs text-muted">{reviewed} of {cases.length} {cases.length === 1 ? "case" : "cases"} resolved</p>
+              <p className="mt-0.5 text-[11px] text-muted">{evidenceCount} evidence {evidenceCount === 1 ? "file" : "files"} saved</p>
             </div>
-          </section></Reveal>
+          </motion.section>
 
-          <Reveal>
-          <section aria-labelledby="activity" className="mt-8">
-            <h2 id="activity" className="font-heading text-lg font-semibold">
-              Recent activity
-            </h2>
-            <ul className="mt-3 divide-y divide-border/60 rounded-2xl bg-surface shadow-card">
-              {activity.map((a) => (
-                <li key={a.id} className="flex items-center gap-3 px-5 py-4 text-sm">
-                  <span className="min-w-0 flex-1 truncate">
-                    {a.text} <span className="text-muted">· {a.company}</span>
-                  </span>
-                  <span className="shrink-0 text-muted">{a.when}</span>
-                </li>
-              ))}
-              {!activity.length && <li className="px-5 py-8 text-sm text-muted">Your recent case activity will appear here.</li>}
-            </ul>
-          </section></Reveal>
+          <motion.section {...rise(1)} aria-labelledby="chart" className="mt-4">
+            <h2 id="chart" className="sr-only">Your complaints over time</h2>
+            <ComplaintChart cases={cases} startDate={startDate} onStartCase={onStartCase} />
+          </motion.section>
+
+          <Reveal className="mt-4 grid gap-4 lg:grid-cols-[3fr_2fr]">
+            <motion.section {...rise(4)} aria-labelledby="recent" className="overflow-hidden rounded-2xl border border-border/70 bg-surface shadow-card">
+              <h2 id="recent" className="px-5 pb-2 pt-5 font-heading text-lg font-semibold">Recent cases</h2>
+              <ul>
+                {visibleCases.slice(0, MAX_HOME_CASES).map((c) => (
+                  <li key={c.id}>
+                    <button type="button" onClick={() => openCase(c.id)} className="group flex w-full items-center gap-3 px-5 py-3.5 text-left transition-colors hover:bg-surface-muted focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-brand">
+                      <span aria-hidden className="h-8 w-1 shrink-0 rounded-full" style={{ background: STATUS[c.status].bar }} />
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate font-heading text-sm font-semibold">{c.company ?? "Company to confirm"}</span>
+                        <span className="block truncate text-xs text-muted">{c.details?.issue ?? (c.rawStory || "Details in progress")}</span>
+                      </span>
+                      {c.details?.amount && <span className="hidden text-sm font-medium sm:block">{c.details.amount}</span>}
+                      <span className="hidden sm:block"><Badge status={c.status} /></span>
+                      <span className="text-muted transition-transform group-hover:translate-x-0.5"><Icon d={ICON.arrow} className="h-4 w-4" /></span>
+                    </button>
+                  </li>
+                ))}
+                {!visibleCases.length && <li className="px-5 py-10 text-center text-sm text-muted">{cases.length ? "No cases match your search." : "Your cases will appear here after you start one."}</li>}
+              </ul>
+              {visibleCases.length > MAX_HOME_CASES && (
+                <button type="button" onClick={onCases} className="flex w-full items-center justify-center gap-1.5 bg-surface-muted/70 py-3.5 text-sm font-medium text-brand-strong transition-colors hover:bg-brand-soft">
+                  See more cases <span aria-hidden>→</span>
+                </button>
+              )}
+            </motion.section>
+
+            <motion.section {...rise(5)} aria-labelledby="bystatus" className="rounded-2xl border border-border/70 bg-surface p-5 shadow-card">
+              <h2 id="bystatus" className="font-heading text-lg font-semibold">Cases by status</h2>
+              <ul className="mt-4 space-y-4">
+                {statusCounts.map(({ s, n }) => (
+                  <li key={s}>
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-muted">{STATUS[s].label}</span>
+                      <span className="font-heading font-semibold">{n}</span>
+                    </div>
+                    <div className="mt-1.5 h-2.5 overflow-hidden rounded-full bg-surface-sunken">
+                      <motion.div className="h-full rounded-full" style={{ background: STATUS[s].bar }} initial={reduce ? false : { width: 0 }} animate={{ width: `${(n / statusMax) * 100}%` }} transition={{ duration: 0.7, ease: "easeOut" }} />
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            </motion.section>
+          </Reveal>
         </main>
       </div>
     </div>

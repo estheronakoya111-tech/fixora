@@ -26,7 +26,7 @@ type SR = {
   continuous: boolean;
   start(): void;
   stop(): void;
-  onresult: ((e: { results: ArrayLike<{ 0: { transcript: string } }> }) => void) | null;
+  onresult: ((e: { resultIndex: number; results: ArrayLike<{ 0: { transcript: string }; isFinal: boolean }> }) => void) | null;
   onend: (() => void) | null;
   onerror: ((e: { error: string }) => void) | null;
 };
@@ -125,6 +125,9 @@ export default function Conversation({ initialStory, initialMessages, initialDet
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const endRef = useRef<HTMLDivElement>(null);
   const recRef = useRef<SR | null>(null);
+  // Whether the user still wants the mic active; false makes onend() a real
+  // stop instead of a hands-free restart.
+  const wantListen = useRef(false);
 
   const canSpeak = useSyncExternalStore(
     () => () => {},
@@ -203,11 +206,15 @@ export default function Conversation({ initialStory, initialMessages, initialDet
     el.style.height = `${Math.min(el.scrollHeight, 160)}px`;
   }, [draft]);
 
-  useEffect(() => () => recRef.current?.stop(), []);
+  useEffect(() => {
+    wantListen.current = false;
+    return () => recRef.current?.stop();
+  }, []);
 
   function send(text: string) {
     const t = text.trim();
     if (!t || busy) return;
+    wantListen.current = false;
     recRef.current?.stop();
     stuck.current = true;
     const next = [...messages, { id: crypto.randomUUID(), role: "user" as const, content: t }];
@@ -242,6 +249,7 @@ export default function Conversation({ initialStory, initialMessages, initialDet
 
   function toggleMic() {
     if (listening) {
+      wantListen.current = false;
       recRef.current?.stop();
       return;
     }
@@ -252,9 +260,36 @@ export default function Conversation({ initialStory, initialMessages, initialDet
     const base = draft ? `${draft.trimEnd()} ` : "";
     rec.lang = navigator.language || "en-US";
     rec.interimResults = true;
-    rec.continuous = true;
-    rec.onresult = (e) => setDraft(base + Array.from(e.results).map((r) => r[0].transcript).join(""));
-    rec.onend = () => setListening(false);
+    // Chrome's `continuous: true` re-processes its buffered audio after every
+    // internal auto-restart and re-delivers the same results, so each spoken
+    // phrase gets appended again — text repeats 3-5x or more. Running one
+    // utterance at a time and restarting in onend avoids that entirely.
+    rec.continuous = false;
+    // Finals recognized so far in this dictation; only new results
+    // (index >= e.resultIndex) are ever added, so nothing is appended twice.
+    let finals = "";
+    rec.onresult = (e) => {
+      let interim = "";
+      for (let i = e.resultIndex; i < e.results.length; i++) {
+        const t = e.results[i][0].transcript;
+        if (e.results[i].isFinal) finals += `${t} `;
+        else interim += t;
+      }
+      setDraft(`${base}${finals}${interim}`);
+    };
+    rec.onend = () => {
+      // Hands-free continuation: each utterance ends its own session; as
+      // long as the mic is still toggled on, listen for the next one.
+      if (wantListen.current) {
+        try {
+          rec.start();
+        } catch {
+          setListening(false);
+        }
+      } else {
+        setListening(false);
+      }
+    };
     rec.onerror = (e) => {
       setListening(false);
       if (e.error === "not-allowed") {
@@ -266,6 +301,7 @@ export default function Conversation({ initialStory, initialMessages, initialDet
       }
     };
     recRef.current = rec;
+    wantListen.current = true;
     setListening(true);
     setMicError(null);
     rec.start();
@@ -486,7 +522,7 @@ export default function Conversation({ initialStory, initialMessages, initialDet
             )}
           </AnimatePresence>
 
-          <div className={`flex items-end gap-2 rounded-[28px] bg-surface p-2 pl-5 shadow-lift transition-shadow focus-within:ring-2 focus-within:ring-brand/30 ${listening ? "ring-2 ring-brand/40" : ""}`}>
+          <div className={`flex items-end gap-2 rounded-[28px] bg-surface p-2 pl-5 shadow-lift ${listening ? "ring-2 ring-brand/40" : ""}`}>
             <div className="relative min-w-0 flex-1 py-2.5">
               {listening && !draft && (
                 <span aria-hidden className="pointer-events-none absolute inset-y-0 left-0 flex items-center gap-2 text-sm text-brand-strong">

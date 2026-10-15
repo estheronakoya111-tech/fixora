@@ -51,19 +51,21 @@ function toCaseItem(record: StoredCase): CaseItem {
       ? "draft"
       : record.status === "waiting-for-response"
         ? "waiting"
-        : record.status === "response-needs-attention"
-          ? "reply"
-          : "done";
+      : record.status === "response-needs-attention"
+        ? "reply"
+        : "done"; // waiting-for-response upper stages and escalated both read as done/waiting states below
   const progress = status === "progress" ? 0 : status === "draft" ? 1 : status === "waiting" ? 2 : 3;
   const next = status === "progress"
     ? "Continue the conversation"
     : status === "draft"
       ? "Review and send your letter"
       : status === "waiting"
-        ? "Wait for their reply"
+        ? "Simulated demo reply arrives on its own shortly"
         : status === "reply"
           ? "Review the company reply"
-          : "Open this completed case";
+          : record.status === "escalated"
+            ? "Escalated — awaiting the final outcome"
+            : "Open this completed case";
   const timestamp = record.updatedAt ?? record.createdAt;
   return {
     id: record.id,

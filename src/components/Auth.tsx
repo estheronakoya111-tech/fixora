@@ -89,7 +89,7 @@ export default function Auth({ onContinue }: { onContinue?: (profile: AuthProfil
         setMessage("An account with this email already exists. Sign in instead.");
         return;
       }
-      if (!saveProfiles([...profiles, { firstName, lastName, email }])) {
+      if (!saveProfiles([...profiles, { firstName, lastName, email, createdAt: Date.now() }])) {
         setMessage("This browser could not save your account. Check local storage settings and try again.");
         return;
       }

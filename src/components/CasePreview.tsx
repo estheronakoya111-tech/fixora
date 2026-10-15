@@ -118,7 +118,12 @@ function StandingPanel() {
   const shadowOpacity = useTransform(scrollYProgress, [0, 0.7], [0.5, 0.2]);
 
   return (
-    <div ref={ref} className="[perspective:1600px] [perspective-origin:50%_100%]">
+    // Phones get no 3D context at all: even a resting rotateX(0) keeps the
+    // panel on a composited 3D transform layer, which rasterizes its text
+    // off-axis and reads as blurred on small screens. Dropping the
+    // perspective wrapper and the rotation entirely (opacity fade only)
+    // keeps every line pixel-crisp there.
+    <div ref={ref} className={reduce || lite ? undefined : "[perspective:1600px] [perspective-origin:50%_100%]"}>
       {/* No will-change on phones: keeping the panel on its own compositor
           layer there rasterizes text softer (blurred) for no gain — the
           panel rests flat now. */}
@@ -135,15 +140,9 @@ function StandingPanel() {
           mx.set(0);
           my.set(0);
         }}
-        style={
-          reduce
-            ? { opacity }
-            : {
-                opacity,
-                rotateX: settle,
-                rotateY: cursorY,
-              }
-        }
+        // No rotateX/rotateY on phones at all — any 3D rotation value (even
+        // 0°) is enough to soften text there.
+        style={reduce || lite ? { opacity } : { opacity, rotateX: settle, rotateY: cursorY }}
         className={`relative ${reduce || lite ? "" : "will-change-transform"}`}
       >
         <div className="overflow-hidden rounded-[2rem] border border-border bg-surface shadow-lift">
@@ -154,8 +153,9 @@ function StandingPanel() {
           </div>
         </div>
 
-        {/* Sheen sliding down the surface while the panel is lying back */}
-        {!reduce && (
+        {/* Sheen sliding down the surface while the panel is lying back —
+            desktop only, since phones never lie the panel back */}
+        {!reduce && !lite && (
           <motion.span
             aria-hidden
             style={{ opacity: glare }}

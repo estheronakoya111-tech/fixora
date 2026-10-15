@@ -112,7 +112,7 @@ export default function Case({ details, initialDraft, initialEvidence = [], init
   const [files, setFiles] = useState<EvidenceFile[]>(initialEvidence);
   const fileInput = useRef<HTMLInputElement>(null);
   const [stage, setStage] = useState<Stage>(
-    initialStatus === "waiting-for-response" || initialStatus === "response-needs-attention" || initialStatus === "response-reviewed"
+    initialStatus === "waiting-for-response" || initialStatus === "response-needs-attention" || initialStatus === "response-reviewed" || initialStatus === "escalated"
       ? "sent"
       : initialStatus === "ready-to-send"
         ? "ready"
@@ -390,7 +390,7 @@ export default function Case({ details, initialDraft, initialEvidence = [], init
         {stage === "sent" && (
           <motion.section initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={spring} className="mt-8 rounded-3xl border-l-4 border-l-positive bg-surface p-6 shadow-card">
             <h2 className="font-heading text-lg font-semibold">Waiting for reply</h2>
-            <p className="mt-2 text-sm leading-relaxed">Marked as sent on {sentOn}. Companies can take a few days, so keep an eye on your inbox.</p>
+            <p className="mt-2 text-sm leading-relaxed">Marked as sent on {sentOn}. A simulated demo reply — not a real company message — arrives on the Replies screen about a minute after you send. Real companies can take longer, so keep an eye on your inbox too.</p>
             <div className="mt-5 flex flex-wrap items-center gap-3">
               {onGoToReplies && (
                 <button type="button" onClick={onGoToReplies} className={BTN3D}>

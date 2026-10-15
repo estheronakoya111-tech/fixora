@@ -28,11 +28,14 @@ import {
   setIntroStory,
   upsertCase,
 } from "@/lib/storage";
-import type { Case as StoredCase, CaseConversationTurn, CaseStatus, CompanyReplyAnalysis, ComplaintDraft, DemoProfile, EvidenceFileMeta } from "@/lib/types";
+import { isReplyDue, toReplyDueAt, SIMULATE_RETRY_MS } from "@/lib/demo-reply";
+import { nowMs } from "@/lib/case";
+import type { Case as StoredCase, CaseConversationTurn, CaseStatus, CaseTimelineEvent, CompanyReplyAnalysis, ComplaintDraft, DemoProfile, EvidenceFileMeta, NextActionChoice, Recommendation, ReplyVerdict } from "@/lib/types";
 
 type Screen = "auth" | "dashboard" | "cases" | "replies" | "learn" | "conversation" | "case";
 
 function newCase(ownerEmail: string, rawStory = ""): StoredCase {
+  const createdAt = Date.now();
   return {
     id: crypto.randomUUID(),
     ownerEmail,
@@ -41,10 +44,25 @@ function newCase(ownerEmail: string, rawStory = ""): StoredCase {
     answers: [],
     evidenceFiles: [],
     status: "in-progress",
-    createdAt: Date.now(),
-    updatedAt: Date.now(),
+    events: [{ id: crypto.randomUUID(), label: "Complaint created", at: createdAt, kind: "complaint" }],
+    createdAt,
+    updatedAt: createdAt,
   };
 }
+
+// The timeline records each real milestone once. Deduping by label means
+// retries or revisits can never add the same event twice.
+function pushEvent(record: StoredCase, label: string, kind: CaseTimelineEvent["kind"]): StoredCase {
+  const events = record.events ?? [];
+  if (events.some((event) => event.label === label)) return record;
+  return { ...record, events: [...events, { id: crypto.randomUUID(), label, at: Date.now(), kind }] };
+}
+
+const NEXT_ACTION_LABELS: Record<NextActionChoice, string> = {
+  wait: "Wait for the investigation",
+  clarify: "Request clarification",
+  escalate: "Escalate the complaint",
+};
 
 function detailsFor(record: StoredCase): CaseDetails {
   return record.details ?? {
@@ -116,6 +134,18 @@ export default function Page() {
     if (!profile || screen === "auth") return;
     saveSession({ screen, caseId: activeCaseId });
   }, [profile, screen, activeCaseId]);
+
+  // Switching screens starts at the top — otherwise the browser keeps the
+  // scroll offset from the previous screen and opens the new one mid-page or
+  // at its bottom. Two screens intentionally manage their own scroll target
+  // after this, so they are skipped:
+  //  - "cases" with a focused case (Cases.tsx scrolls that card into view)
+  //  - "conversation" (its own effect sticks to the newest message)
+  useEffect(() => {
+    if (screen === "cases" && focusCaseId) return;
+    if (screen === "conversation") return;
+    window.scrollTo({ top: 0, behavior: "auto" });
+  }, [screen, focusCaseId]);
 
   const updateCase = useCallback((id: string, update: (record: StoredCase) => StoredCase) => {
     const email = profile?.email;
@@ -207,7 +237,7 @@ export default function Page() {
     setCaseDetails(detailsFor(record));
     if (record.status === "in-progress") {
       setScreen("conversation");
-    } else if (record.status === "response-needs-attention" || record.status === "response-reviewed") {
+    } else if (record.status === "response-needs-attention" || record.status === "response-reviewed" || record.status === "escalated") {
       setScreen("replies");
     } else {
       setScreen("case");
@@ -300,22 +330,151 @@ export default function Page() {
   const clearFocusCase = useCallback(() => setFocusCaseId(null), []);
 
   const saveReply = useCallback((id: string, companyReply: CompanyReplyAnalysis) => {
-    updateCase(id, (record) => ({ ...record, companyReply, status: "response-needs-attention" }));
+    updateCase(id, (record) => pushEvent(
+      pushEvent({ ...record, companyReply, status: "response-needs-attention" }, "Response received", "reply"),
+      "Response interpreted",
+      "reply",
+    ));
   }, [updateCase]);
 
-  const markReplyHandled = useCallback((id: string, handled: boolean) => {
-    updateCase(id, (record) => record.companyReply
-      ? { ...record, companyReply: { ...record.companyReply, handled }, status: handled ? "response-reviewed" : "response-needs-attention" }
-      : record);
+  // Recording the next-action decision clears "needs attention": the reply
+  // has been read and acted on. The choice drives what happens next: escalate
+  // opens the escalation flow on the Replies screen, and the case stays
+  // reviewable at any time.
+  const decideNextAction = useCallback((id: string, action: NextActionChoice) => {
+    updateCase(id, (record) => {
+      if (!record.companyReply) return record;
+      const decided = {
+        ...record,
+        companyReply: { ...record.companyReply, decision: { action, at: nowMs() }, handled: true },
+        status: "response-reviewed" as CaseStatus,
+      };
+      return pushEvent(decided, `Next action chosen: ${NEXT_ACTION_LABELS[action]}`, "decision");
+    });
   }, [updateCase]);
 
   const changeStatus = useCallback((status: CaseStatus) => {
-    if (activeCaseId) updateCase(activeCaseId, (record) => ({
-      ...record,
-      status,
-      sentAt: status === "waiting-for-response" ? Date.now() : undefined,
-    }));
+    if (activeCaseId) updateCase(activeCaseId, (record) => {
+      if (status === "waiting-for-response") {
+        // Sending confirmed: arm the simulated demo reply exactly once. A
+        // reply that was already saved (e.g. status bounced back and forth)
+        // keeps its due time so it is never regenerated.
+        const sentAt = record.sentAt ?? Date.now();
+        return pushEvent(
+          { ...record, status, sentAt, replyDueAt: record.companyReply ? record.replyDueAt : toReplyDueAt(sentAt) },
+          "Send confirmed — waiting for a reply",
+          "complaint",
+        );
+      }
+      return { ...record, status, sentAt: undefined, replyDueAt: undefined };
+    });
   }, [activeCaseId, updateCase]);
+
+  // The simulated demo reply scheduler: one reply per confirmed-sent
+  // complaint, ~1 minute after send. It reads saved state each tick, so a
+  // refresh neither restarts the wait nor duplicates the reply — the saved
+  // companyReply on the case is the guard. Failure just pushes the due time
+  // forward and tries again later; nothing is saved half-way.
+  useEffect(() => {
+    if (!profile) return;
+    const email = profile.email;
+    const inFlight = new Set<string>();
+
+    async function settleDueReplies() {
+      const due = getCases(email).filter((record) => isReplyDue(record, nowMs()));
+      for (const record of due) {
+        if (inFlight.has(record.id)) continue;
+        inFlight.add(record.id);
+        try {
+          const res = await fetch("/api/fixora/simulate", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              company: record.company ?? record.details?.company,
+              issue: record.details?.issue ?? record.summary?.problem,
+              amount: record.details?.amount,
+              goal: record.details?.goal ?? record.summary?.desiredOutcome,
+              rawStory: record.rawStory,
+            }),
+          });
+          const data = await res.json();
+          if (!res.ok) throw new Error(typeof data.error === "string" ? data.error : "simulate failed");
+          if (typeof data.replyText !== "string" || typeof data.meaning !== "string" || !Array.isArray(data.unresolved) || !Array.isArray(data.options)) {
+            throw new Error("Incomplete simulated reply. Please try again.");
+          }
+          updateCase(record.id, (saved) => {
+            if (saved.companyReply) return saved; // Another tab or an earlier run already saved the reply.
+            const settled = {
+              ...saved,
+              companyReply: {
+                replyText: data.replyText,
+                meaning: data.meaning,
+                unresolved: data.unresolved.filter((item: unknown): item is string => typeof item === "string"),
+                options: data.options.filter((item: unknown): item is string => typeof item === "string"),
+                ...(typeof data.verdict === "string" ? { verdict: data.verdict as ReplyVerdict } : {}),
+                ...(data.recommendation && typeof data.recommendation.action === "string" && ["wait", "clarify", "escalate"].includes(data.recommendation.action) && typeof data.recommendation.reason === "string"
+                  ? { recommendation: { action: data.recommendation.action as NextActionChoice, reason: data.recommendation.reason } satisfies Recommendation }
+                  : {}),
+                addedAt: nowMs(),
+                handled: false,
+                isSimulated: true,
+              } satisfies CompanyReplyAnalysis,
+              status: "response-needs-attention" as CaseStatus,
+              replyDueAt: undefined,
+            };
+            return pushEvent(
+              pushEvent(settled, "Simulated response received", "reply"),
+              "Response interpreted",
+              "reply",
+            );
+          });
+        } catch {
+          updateCase(record.id, (saved) => saved.companyReply
+            ? saved
+            : { ...saved, replyDueAt: nowMs() + SIMULATE_RETRY_MS });
+        } finally {
+          inFlight.delete(record.id);
+        }
+      }
+    }
+
+    void settleDueReplies();
+    const tick = window.setInterval(settleDueReplies, 5000);
+    // Background tabs throttle setInterval, so a return to the tab also checks.
+    const onVisible = () => { void settleDueReplies(); };
+    window.addEventListener("focus", onVisible);
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      window.clearInterval(tick);
+      window.removeEventListener("focus", onVisible);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
+  }, [profile, updateCase]);
+
+  // Escalation: exactly one per complaint. The draft is saved as the user
+  // edits it; confirming the send sets sentConfirmed once, which locks the
+  // escalation action for the case and moves it to "escalated".
+  const saveEscalationDraft = useCallback((id: string, draft: ComplaintDraft) => {
+    updateCase(id, (record) => record.escalation?.sentAt
+      ? record
+      : pushEvent(
+          { ...record, escalation: { draft, draftedAt: record.escalation?.draftedAt ?? Date.now() } },
+          "Escalation drafted",
+          "escalation",
+        ));
+  }, [updateCase]);
+
+  const confirmEscalationSent = useCallback((id: string) => {
+    updateCase(id, (record) => {
+      if (!record.escalation || record.escalation.sentConfirmed) return record;
+      const escalated = {
+        ...record,
+        escalation: { ...record.escalation, sentAt: Date.now(), sentConfirmed: true },
+        status: "escalated" as CaseStatus,
+      };
+      return pushEvent(escalated, "Escalation send confirmed", "escalation");
+    });
+  }, [updateCase]);
 
   const discardCurrentCase = useCallback(() => {
     if (!activeCaseId || !profile) return false;
@@ -417,7 +576,7 @@ export default function Page() {
           <Cases cases={cases} onOpenCase={openSavedCase} onStartCase={startConversation} onGoToReplies={() => setScreen("replies")} onDeleteCase={deleteSavedCase} focusCaseId={focusCaseId} onClearFocus={clearFocusCase} />
         )}
         {screen === "replies" && (
-          <Replies cases={cases} onStartCase={startConversation} onOpenCase={openCaseDetails} onSaveReply={saveReply} onMarkHandled={markReplyHandled} />
+          <Replies cases={cases} onStartCase={startConversation} onOpenCase={openCaseDetails} onSaveReply={saveReply} onDecision={decideNextAction} onSaveEscalationDraft={saveEscalationDraft} onEscalationSent={confirmEscalationSent} />
         )}
         {screen === "learn" && (
           <Learn

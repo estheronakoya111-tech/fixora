@@ -19,5 +19,11 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: message }, { status: result.status });
   }
 
-  return NextResponse.json({ meaning: result.meaning, unresolved: result.unresolved, options: result.options });
+  return NextResponse.json({
+    meaning: result.meaning,
+    unresolved: result.unresolved,
+    options: result.options,
+    ...(result.verdict ? { verdict: result.verdict } : {}),
+    ...(result.recommendation ? { recommendation: result.recommendation } : {}),
+  });
 }
