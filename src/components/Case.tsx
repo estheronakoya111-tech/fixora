@@ -119,6 +119,9 @@ export default function Case({ details, initialDraft, initialEvidence = [], init
         : "draft",
   );
   const [copied, setCopied] = useState(false);
+  // An escalated case is only viewable here, never re-editable: the revert
+  // button is hidden so storage cannot be downgraded past that milestone.
+  const escalated = initialStatus === "escalated";
   const [sentOn, setSentOn] = useState(initialSentAt ? new Date(initialSentAt).toLocaleDateString(undefined, { month: "short", day: "numeric" }) : "");
 
   const detailsKey = JSON.stringify(details);
@@ -221,7 +224,7 @@ export default function Case({ details, initialDraft, initialEvidence = [], init
             ← Cases
           </button>
           <span className={`rounded-full px-3 py-1 text-xs font-medium ${stage === "sent" ? "bg-positive-soft text-positive-strong" : "bg-brand-soft text-brand-700"}`}>
-            {stage === "draft" ? "Draft" : stage === "ready" ? "Ready to send" : "Waiting for reply"}
+            {stage === "draft" ? "Draft" : stage === "ready" ? "Ready to send" : escalated ? "Escalated" : "Waiting for reply"}
           </span>
         </div>
 
@@ -389,8 +392,12 @@ export default function Case({ details, initialDraft, initialEvidence = [], init
 
         {stage === "sent" && (
           <motion.section initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={spring} className="mt-8 rounded-3xl border-l-4 border-l-positive bg-surface p-6 shadow-card">
-            <h2 className="font-heading text-lg font-semibold">Waiting for reply</h2>
-            <p className="mt-2 text-sm leading-relaxed">Marked as sent on {sentOn}. A simulated demo reply — not a real company message — arrives on the Replies screen about a minute after you send. Real companies can take longer, so keep an eye on your inbox too.</p>
+            <h2 className="font-heading text-lg font-semibold">{escalated ? "Escalated — awaiting the final outcome" : "Waiting for reply"}</h2>
+            <p className="mt-2 text-sm leading-relaxed">
+              {escalated
+                ? `Your escalation was sent on ${sentOn}. The labelled simulated final outcome — a demo, not a real company action — arrives on the Replies screen.`
+                : `Marked as sent on ${sentOn}. A simulated demo reply — not a real company message — arrives on the Replies screen about a minute after you send. Real companies can take longer, so keep an eye on your inbox too.`}
+            </p>
             <div className="mt-5 flex flex-wrap items-center gap-3">
               {onGoToReplies && (
                 <button type="button" onClick={onGoToReplies} className={BTN3D}>
@@ -398,9 +405,11 @@ export default function Case({ details, initialDraft, initialEvidence = [], init
                   <span aria-hidden>→</span>
                 </button>
               )}
-              <button type="button" onClick={() => { setStage("ready"); onStatusChange?.("ready-to-send"); }} className="text-sm font-medium text-muted hover:text-foreground hover:underline">
-                I haven&apos;t sent it yet
-              </button>
+              {!escalated && (
+                <button type="button" onClick={() => { setStage("ready"); onStatusChange?.("ready-to-send"); }} className="text-sm font-medium text-muted hover:text-foreground hover:underline">
+                  I haven&apos;t sent it yet
+                </button>
+              )}
             </div>
           </motion.section>
         )}

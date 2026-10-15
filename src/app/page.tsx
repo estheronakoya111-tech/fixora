@@ -470,6 +470,8 @@ export default function Page() {
       const escalated = {
         ...record,
         escalation: { ...record.escalation, sentAt: Date.now(), sentConfirmed: true },
+        // also stamped on the record so the case view can show the sent date
+        sentAt: Date.now(),
         status: "escalated" as CaseStatus,
       };
       return pushEvent(escalated, "Escalation send confirmed", "escalation");
