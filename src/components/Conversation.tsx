@@ -43,7 +43,7 @@ const STARTERS = [
 ];
 
 const BTN3D =
-  "group relative inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-b from-brand to-brand-strong px-5 py-3 font-heading text-sm font-semibold text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.4),0_4px_0_#9A3F12,0_12px_20px_-8px_rgba(232,106,42,0.6)] transition-all before:pointer-events-none before:absolute before:inset-[3px] before:rounded-[9px] before:border before:border-dashed before:border-white/35 hover:-translate-y-px active:translate-y-[3px] active:shadow-[inset_0_1px_0_rgba(255,255,255,0.3),0_1px_0_#9A3F12,0_4px_8px_-4px_rgba(232,106,42,0.5)] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-brand";
+  "group relative inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-b from-brand to-brand-strong px-5 py-3 font-heading text-sm font-semibold text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.4),0_4px_0_#9A3F12,0_12px_20px_-8px_rgba(232,106,42,0.6)] transition-all before:pointer-events-none before:absolute before:inset-[3px] before:rounded-[9px] before:border before:border-dashed before:border-white/35 hover:-translate-y-px active:translate-y-[3px] active:shadow-[inset_0_1px_0_rgba(255,255,255,0.3),0_1px_0_#9A3F12,0_4px_8px_-4px_rgba(232,106,42,0.5)] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-brand max-sm:gap-1.5 max-sm:rounded-lg max-sm:px-3 max-sm:py-2 max-sm:text-xs";
 
 const CHIP =
   "rounded-full bg-surface px-4 py-2 text-sm font-medium text-foreground shadow-soft transition-colors hover:bg-brand-soft hover:text-brand-700 focus-visible:outline-2 focus-visible:outline-brand";
@@ -107,7 +107,32 @@ const ICON = {
 
 export default function Conversation({ initialStory, initialMessages, initialDetails, onUpdate, onExit, onDiscard, onDraft }: ConversationProps) {
   const reduce = useReducedMotion();
-  const [messages, setMessages] = useState<Msg[]>(initialMessages ?? (initialStory ? [{ id: "story", role: "user", content: initialStory }] : []));
+  const [messages, setMessages] = useState<Msg[]>(() => {
+    const base: Msg[] = initialMessages ?? (initialStory ? [{ id: "story", role: "user", content: initialStory }] : []);
+    // Returning to a saved conversation that ends on an assistant turn: no
+    // message would auto-run, so Fixora greets the user with the case's real
+    // context. Computed in the initializer (no effect, no cascading render)
+    // with a fixed id so it never stacks; card extraction is unaffected
+    // because the greeting carries no case marker and details come from
+    // initialDetails.
+    if (!initialMessages?.length || initialMessages[initialMessages.length - 1].role === "user") return base;
+    const last = base[base.length - 1];
+    if (last?.role === "assistant" && last.content.startsWith("Welcome back")) return base;
+    const issue = initialDetails?.issue ?? "";
+    const company = initialDetails?.company ?? "";
+    const amount = initialDetails?.amount ?? "";
+    const about = issue
+      ? `We were working on your ${issue.toLowerCase()} complaint${company ? ` with ${company}` : ""}${amount ? ` (${amount})` : ""}.`
+      : "We were in the middle of starting a complaint together.";
+    return [
+      ...base,
+      {
+        id: "welcome-back",
+        role: "assistant" as const,
+        content: `Welcome back — good to see you again. ${about} Everything you told me so far is right here, so there's nothing to repeat. Where would you like to pick up — keep going, add something you just remembered, or talk through how things have been going?`,
+      },
+    ];
+  });
   const [live, setLive] = useState("");
   const [card, setCard] = useState<CaseDetails>(initialDetails ?? EMPTY);
   const [busy, setBusy] = useState((initialMessages?.at(-1)?.role === "user") || (!!initialStory && !initialMessages));
@@ -177,6 +202,7 @@ export default function Conversation({ initialStory, initialMessages, initialDet
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
 
   useEffect(() => {
     onUpdate?.({

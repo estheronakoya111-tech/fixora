@@ -1,6 +1,6 @@
 "use client";
 
-import { PenLine, Mic, FolderOpen, FileText, Mail, MessageSquare, type LucideIcon } from "lucide-react";
+import { PenLine, Mic, FolderOpen, FileText, Mail, MessageSquare, MessageCircleQuestion, ClipboardList, BarChart3, type LucideIcon } from "lucide-react";
 import Reveal from "@/components/Reveal";
 
 type Block = { id: string; text: string; kind?: "button" };
@@ -33,7 +33,7 @@ const LESSONS: Lesson[] = [
     steps: [
       { focus: "a", title: "Press Start a case", body: "You'll find it at the top of every page." },
       { focus: "b", title: "Say what happened", body: "Write it the way you'd tell a friend. Short or long, both are fine." },
-      { focus: "c", title: "Answer Fixora's questions", body: "She asks one at a time. Any question can be skipped." },
+      { focus: "c", title: "Answer Fixora's questions", body: "She explains what she understood in her own words and then asks one question at a time — that's how your case summary is built. Any question can be skipped, and quick-tap answers are offered." },
     ],
     go: { label: "Start a case", to: "start" },
   },
@@ -127,6 +127,59 @@ const LESSONS: Lesson[] = [
     ],
     go: { label: "Go to Replies", to: "replies" },
   },
+  {
+    id: "next",
+    title: "Handle their reply",
+    blurb: "Wait, clarify, or escalate — you choose.",
+    time: "3 min",
+    Icon: MessageCircleQuestion,
+    blocks: [
+      { id: "a", text: "Wait · Clarify · Escalate" },
+      { id: "b", text: "Draft my clarification", kind: "button" },
+      { id: "c", text: "Final outcome · Simulated (Demo)" },
+    ],
+    steps: [
+      { focus: "a", title: "Pick one of three", body: "After reading Fixora's explanation, choose: Wait (their investigation simply needs time), Clarify (their answer left things unclear), or Escalate (they refused without a good reason). Fixora suggests which fits — but you always decide." },
+      { focus: "b", title: "Let Fixora clarify for you", body: "Choose Clarify and Fixora turns each unclear point of their reply into a short, polite question in a ready-to-send email. Edit it, open it in Gmail, and send it from your own mail." },
+      { focus: "c", title: "Escalation and what comes back", body: "Choose Escalate and Fixora drafts a firmer letter asking for a written final position. After you send it, the Replies screen shows a clearly labelled simulated final outcome — it's a demo example, not a real company message." },
+    ],
+    go: { label: "Go to Replies", to: "replies" },
+  },
+  {
+    id: "cases",
+    title: "Track your cases",
+    blurb: "Everything in one list.",
+    time: "2 min",
+    Icon: ClipboardList,
+    blocks: [
+      { id: "a", text: "All Cases · Needs You · Waiting · Resolved" },
+      { id: "b", text: "Search your cases..." },
+      { id: "c", text: "Delete" },
+    ],
+    steps: [
+      { focus: "a", title: "Filter with one tap", body: "The tabs at the top divide your cases by what they need from you, with a live count on each tab." },
+      { focus: "b", title: "Find one in seconds", body: "Search by the company's name or by what went wrong. Tap any case to reopen it exactly as you left it." },
+      { focus: "c", title: "Delete a finished case", body: "In the Cases list, the Delete button appears on hover. Fixora asks you to confirm first, because deleted cases cannot come back." },
+    ],
+    go: { label: "Go to my cases", to: "case" },
+  },
+  {
+    id: "chart",
+    title: "Read your chart",
+    blurb: "Your complaints, over time.",
+    time: "1 min",
+    Icon: BarChart3,
+    blocks: [
+      { id: "a", text: "Your complaints over time" },
+      { id: "b", text: "7 days · 14 days · 30 days", kind: "button" },
+      { id: "c", text: "Started / Sent" },
+    ],
+    steps: [
+      { focus: "c", title: "Two lines, two milestones", body: "On your dashboard the orange line counts the cases you started, and the green line counts the ones you confirmed sending. Each line steps up on the day something happened." },
+      { focus: "b", title: "Pick a time range", body: "The pills on the right sweep back 7, 14 or 30 days. If your oldest case is older than that, the chart stretches back to it so your whole story is visible." },
+    ],
+    go: { label: "Go to my cases", to: "case" },
+  },
 ];
 
 const FAQ = [
@@ -134,6 +187,9 @@ const FAQ = [
   ["Where are my files kept?", "Fixora only saves file names and sizes. The files stay on your device, so you attach them yourself in Gmail."],
   ["Can I change what Fixora wrote?", "Yes. Every word is editable, and you can ask Fixora to redraft it."],
   ["What is the voice button?", "It lets you speak instead of typing. It works in browsers that support speech, like Chrome and Edge."],
+  ["What do the chart lines mean?", "Orange counts the cases you started, green counts the ones you sent. Pick 7, 14 or 30 days to watch your activity grow."],
+  ["When should I escalate?", "When the reply refuses without a good reason, ignores what you asked for, or the deadline you mentioned has passed. Fixora suggests which of the three choices fits, and you make the final call."],
+  ["Why do some messages say 'Simulated'?", "Fixora is a demo. The automatic reply after sending and the final outcome are clearly labelled simulated examples, so you always know what is real."],
 ];
 
 const BTN3D =
@@ -176,8 +232,8 @@ export default function Learn({ onGo }: LearnProps) {
       <header className="sticky top-0 z-10 flex items-center gap-3 bg-background/90 px-5 py-3 backdrop-blur md:px-8">
         <h1 className="font-heading text-lg font-semibold tracking-tight md:text-xl">Learn Fixora</h1>
         <div className="ml-auto">
-          <button type="button" onClick={() => onGo?.("start")} className={BTN3D}>
-            <span aria-hidden className="flex h-5 w-5 items-center justify-center rounded-full bg-white/25 text-sm leading-none">+</span>
+          <button type="button" onClick={() => onGo?.("start")} className={`${BTN3D} max-sm:rounded-lg max-sm:px-3 max-sm:py-2 max-sm:text-xs max-sm:gap-1.5`}>
+            <span aria-hidden className="flex h-5 w-5 items-center justify-center rounded-full bg-white/25 text-sm leading-none max-sm:h-4 max-sm:w-4 max-sm:text-[11px]">+</span>
             Start a case
           </button>
         </div>
@@ -186,7 +242,7 @@ export default function Learn({ onGo }: LearnProps) {
       <main className="mx-auto max-w-4xl px-5 pb-28 pt-4 md:px-8 md:pb-16">
         {/* Intro + jump links */}
         <p className="max-w-xl text-base leading-relaxed text-muted">
-          How to use Fixora, from your first message to the company reply. Six short guides, about 9 minutes in all.
+          How to use Fixora, from your first message to what happens after the company replies. Nine short guides, about 13 minutes in all.
         </p>
         <nav aria-label="Guides" className="mt-5 flex flex-wrap gap-2">
           {LESSONS.map((l, i) => (

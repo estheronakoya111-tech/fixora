@@ -24,7 +24,7 @@ const BTN3D =
   "group relative inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-b from-brand to-brand-strong px-5 py-3 font-heading text-sm font-semibold text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.4),0_4px_0_#9A3F12,0_12px_20px_-8px_rgba(232,106,42,0.6)] transition-all before:pointer-events-none before:absolute before:inset-[3px] before:rounded-[9px] before:border before:border-dashed before:border-white/35 hover:-translate-y-px hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.4),0_5px_0_#9A3F12,0_16px_24px_-8px_rgba(232,106,42,0.65)] active:translate-y-[3px] active:shadow-[inset_0_1px_0_rgba(255,255,255,0.3),0_1px_0_#9A3F12,0_4px_8px_-4px_rgba(232,106,42,0.5)] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-brand";
 
 const DAY = 86400000;
-const MAX_HOME_CASES = 4;
+const MAX_HOME_CASES = 6;
 const NEEDS: CaseStatus[] = ["in-progress", "ready-to-send", "response-needs-attention", "outcome-needs-attention"];
 
 const stamp = (c: SavedCase) => c.updatedAt ?? c.createdAt;
@@ -113,8 +113,12 @@ export default function Dashboard({
 
   // Escalated cases are managed from the Replies screen, so that row is kept
   // out of this overview panel on purpose.
-  const statusCounts = (Object.keys(STATUS) as CaseStatus[]).filter((s) => s !== "escalated").map((s) => ({ s, n: cases.filter((c) => c.status === s).length }));
-  const statusMax = Math.max(1, ...statusCounts.map((x) => x.n));
+  // Statuses already shown in the summary cards above (Needs you, Waiting for
+  // reply, Reply reviewed) are also kept out of the by-status list.
+  const overviewStatuses: CaseStatus[] = [...NEEDS, "waiting-for-response", "response-reviewed"];
+  const statusCounts = (Object.keys(STATUS) as CaseStatus[])
+    .filter((s) => s !== "escalated" && !overviewStatuses.includes(s))
+    .map((s) => ({ s, n: cases.filter((c) => c.status === s).length }));
 
   const searchMatches = useMemo<SearchMatch[]>(() => {
     const q = query.trim().toLowerCase();
@@ -142,7 +146,7 @@ export default function Dashboard({
     <div className="min-h-dvh text-foreground">
       <div className="min-w-0 flex-1">
         <header className="flex items-center gap-3 px-5 py-4 md:px-8 md:py-5">
-          <div className="md:hidden"><FixoraLogo size="sm" /></div>
+          <div className="md:hidden"><FixoraLogo size="sm" showWordmark /></div>
           <div className="ml-auto hidden max-w-md flex-1 sm:block md:ml-0">
             <SearchPopup query={query} matches={searchMatches} total={visibleCases.length} onQuery={setQuery} onPick={openCase} />
           </div>
@@ -204,13 +208,13 @@ export default function Dashboard({
 
           <motion.section {...rise(1)} aria-labelledby="chart" className="mt-4">
             <h2 id="chart" className="sr-only">Your complaints over time</h2>
-            <ComplaintChart cases={cases} startDate={startDate} onStartCase={onStartCase} />
+            <ComplaintChart cases={cases} onStartCase={onStartCase} />
           </motion.section>
 
           <Reveal className="mt-4 grid gap-4 lg:grid-cols-[3fr_2fr]">
-            <motion.section {...rise(4)} aria-labelledby="recent" className="overflow-hidden rounded-2xl border border-border/70 bg-surface shadow-card">
+            <motion.section {...rise(4)} aria-labelledby="recent" className="flex flex-col overflow-hidden rounded-2xl border border-border/70 bg-surface shadow-card">
               <h2 id="recent" className="px-5 pb-2 pt-5 font-heading text-lg font-semibold">Recent cases</h2>
-              <ul>
+              <ul className="flex-1">
                 {visibleCases.slice(0, MAX_HOME_CASES).map((c) => (
                   <li key={c.id}>
                     <button type="button" onClick={() => openCase(c.id)} className="group flex w-full items-center gap-3 px-5 py-3.5 text-left transition-colors hover:bg-surface-muted focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-brand">
@@ -234,18 +238,16 @@ export default function Dashboard({
               )}
             </motion.section>
 
-            <motion.section {...rise(5)} aria-labelledby="bystatus" className="rounded-2xl border border-border/70 bg-surface p-5 shadow-card">
+            <motion.section {...rise(5)} aria-labelledby="bystatus" className="flex flex-col rounded-2xl border border-border/70 bg-surface p-5 shadow-card">
               <h2 id="bystatus" className="font-heading text-lg font-semibold">Cases by status</h2>
-              <ul className="mt-4 space-y-4">
+              <ul className="mt-4 grid flex-1 auto-rows-fr grid-cols-2 gap-2.5">
                 {statusCounts.map(({ s, n }) => (
-                  <li key={s}>
-                    <div className="flex items-center justify-between text-sm">
-                      <span className="text-muted">{STATUS[s].label}</span>
-                      <span className="font-heading font-semibold">{n}</span>
-                    </div>
-                    <div className="mt-1.5 h-2.5 overflow-hidden rounded-full bg-surface-sunken">
-                      <motion.div className="h-full rounded-full" style={{ background: STATUS[s].bar }} initial={reduce ? false : { width: 0 }} animate={{ width: `${(n / statusMax) * 100}%` }} transition={{ duration: 0.7, ease: "easeOut" }} />
-                    </div>
+                  <li key={s} className="flex flex-col justify-between rounded-xl bg-surface-muted p-3">
+                    <span className="flex items-start gap-1.5 text-xs leading-tight text-muted">
+                      <span aria-hidden className="mt-1 h-2 w-2 shrink-0 rounded-full" style={{ background: STATUS[s].bar }} />
+                      {STATUS[s].label}
+                    </span>
+                    <span className={`mt-2 font-heading text-2xl font-semibold leading-none ${n === 0 ? "text-subtle" : ""}`}>{n}</span>
                   </li>
                 ))}
               </ul>

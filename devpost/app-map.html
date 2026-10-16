@@ -103,12 +103,23 @@
     <section id="screens" aria-labelledby="screens-title">
       <h2 id="screens-title">Every screen answers one question</h2>
       <div class="screen-grid">
-        <article class="screen-card"><strong>Home</strong><p>What needs my attention, and what is next?</p></article>
-        <article class="screen-card"><strong>Cases</strong><p>Where do my problems stand?</p></article>
-        <article class="screen-card"><strong>Conversation</strong><p>What happened, and what detail matters?</p></article>
+        <article class="screen-card"><strong>Home</strong><p>What needs my attention, and what is next? Plus a complaints-over-time area chart (started vs sent, 7/14/30-day pills) driven by real case dates.</p></article>
+        <article class="screen-card"><strong>Cases</strong><p>Where do my problems stand? Filter chips with live counts, a needs/newest/oldest sort menu, a per-case progress track, search, and confirmed delete.</p></article>
+        <article class="screen-card"><strong>Conversation</strong><p>What happened, and what detail matters? Fixora replies in full explanations (4–8 sentences), not one-liners.</p></article>
         <article class="screen-card"><strong>Case</strong><p>Is this complaint ready for approval?</p></article>
-        <article class="screen-card"><strong>Replies</strong><p>What did the company say and miss?</p></article>
-        <article class="screen-card"><strong>Learn</strong><p>How does Fixora work?</p></article>
+        <article class="screen-card"><strong>Replies</strong><p>What did the company say and miss? Then choose Wait (guidance panel), Clarify (Fixora drafts the question email), or Escalate (Fixora drafts the letter).</p></article>
+        <article class="screen-card"><strong>Learn</strong><p>How does Fixora work? Nine guides now cover the full journey, including the chart, the case tracker, and the post-reply decisions.</p></article>
+      </div>
+    </section>
+
+    <section aria-labelledby="new-title">
+      <h2 id="new-title">Features added after the first build</h2>
+      <div class="panel">
+        <details open><summary>Real-data dashboard chart</summary><p><code>src/components/ui/DashboardChart.tsx</code> plots cumulative started/sent cases per day from real <code>createdAt</code>/<code>sentAt</code> timestamps. The window stretches back to the first case so the curve always rises; date labels thin out on phones and always keep today visible.</p></details>
+        <details><summary>Cases manager redesign</summary><p><code>src/components/Cases.tsx</code> — card list with status edge colors, a Understand → Draft → Sent → Reply progress track (reads “Done” when finished), filter chips, a custom sort menu, next-step hints, and confirmed delete. Fully Fixora-tokened colors.</p></details>
+        <details><summary>Reply decisions: Wait · Clarify · Escalate</summary><p><code>src/components/Replies.tsx</code> — Wait shows a next-steps panel; Clarify asks <code>/api/fixora/clarify</code> → <code>draftClarification</code> in <code>src/lib/fixora.ts</code> for an editable itemised question email with a Gmail handoff; Escalate drafts the formal letter as before. <code>decideNextAction</code> in <code>page.tsx</code> records the choice and clears attention.</p></details>
+        <details><summary>Detailed chat replies</summary><p>The system prompt in <code>src/lib/fixora.ts</code> now requires 4–8 sentence explanations (understanding → what it means → why the next question), with an 800-token cap.</p></details>
+        <details><summary>Mobile pass</summary><p>All page CTAs trim to <code>px-3 / py-2</code> on phones; the Fixora logo shows the full wordmark below <code>sm</code>; filter chips wrap instead of scrolling horizontally.</p></details>
       </div>
     </section>
 
@@ -119,6 +130,7 @@
         <li><div><strong>Entry:</strong> <code>src/app/page.tsx</code> → <code>startConversation</code>. Creates a case and switches to the conversation screen.</div></li>
         <li><div><strong>Conversation:</strong> <code>src/components/Conversation.tsx</code> → its submit/fetch flow calls <code>/api/fixora</code> and renders streamed assistant text.</div></li>
         <li><div><strong>Persistence/result:</strong> <code>src/lib/storage.ts</code> → <code>upsertCase</code> saves the case; <code>Dashboard.tsx</code>, <code>Cases.tsx</code>, and <code>Replies.tsx</code> show the saved state.</div></li>
+        <li><div><strong>Reply decision:</strong> <code>Replies.tsx</code> → <code>onDecision</code> → <code>decideNextAction</code> in <code>page.tsx</code> records the choice; “Request clarification” additionally calls <code>/api/fixora/clarify</code> → <code>draftClarification</code> (Groq) for an editable email draft.</div></li>
       </ol>
     </section>
 
@@ -129,6 +141,8 @@
         <details><summary>Change the conversation or questions</summary><p>Start at <code>src/components/Conversation.tsx</code> for the interaction and <code>src/lib/fixora.ts</code> for the server prompt and response validation.</p></details>
         <details><summary>Change what is saved</summary><p>Start at <code>src/lib/types.ts</code> for shapes and <code>src/lib/storage.ts</code> for browser persistence.</p></details>
         <details><summary>Change the complaint or reply AI tasks</summary><p>Start at <code>src/lib/fixora.ts</code>, then inspect <code>src/app/api/fixora/draft/route.ts</code> or <code>src/app/api/fixora/reply/route.ts</code>.</p></details>
+        <details><summary>Change the dashboard chart</summary><p>Start at <code>src/components/ui/DashboardChart.tsx</code> — <code>buildSeries</code> decides the date window and the cumulative started/sent counts; the pills and tooltip live in the same file.</p></details>
+        <details><summary>Change reply decisions or the clarification email</summary><p>Start at <code>src/components/Replies.tsx</code>, <code>decideNextAction</code> in <code>src/app/page.tsx</code>, and <code>draftClarification</code> in <code>src/lib/fixora.ts</code> behind <code>/api/fixora/clarify</code>.</p></details>
       </div>
     </section>
 
@@ -140,7 +154,7 @@
     <section aria-labelledby="run-title">
       <h2 id="run-title">Run it again</h2>
       <p>From the project root, run <code>npm install</code> if dependencies are missing, then <code>npm run dev</code> and open <code>http://localhost:3000</code>. Production verification uses <code>npm run lint</code> and <code>npm run build</code>. The Groq-backed paths need <code>GROQ_API_KEY</code> configured in the hosting environment.</p>
-      <p class="note">Source snapshot: current working tree after the loading-indicator update. This map is a static reference and can drift as the code changes.</p>
+      <p class="note">Source snapshot: current working tree after the Cases redesign, the real-data dashboard chart, the Wait/Clarify/Escalate reply decisions, the detailed-replies prompt, and the mobile pass (2026-10-16). This map is a static reference and can drift as the code changes.</p>
     </section>
   </main>
 </body>

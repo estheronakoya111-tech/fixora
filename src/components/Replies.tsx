@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { motion } from "framer-motion";
 import Reveal from "@/components/Reveal";
 import { nowMs } from "@/lib/case";
 import type { Case as StoredCase, CompanyReplyAnalysis, ComplaintDraft, NextActionChoice } from "@/lib/types";
@@ -19,7 +20,7 @@ type RepliesProps = {
   onGuidanceSaved: (caseId: string) => void;
 };
 
-const BTN3D = "group relative inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-b from-brand to-brand-strong px-5 py-3 font-heading text-sm font-semibold text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.4),0_4px_0_#9A3F12,0_12px_20px_-8px_rgba(232,106,42,0.6)] transition-all before:pointer-events-none before:absolute before:inset-[3px] before:rounded-[9px] before:border before:border-dashed before:border-white/35 hover:-translate-y-px hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.4),0_5px_0_#9A3F12,0_16px_24px_-8px_rgba(232,106,42,0.65)] active:translate-y-[3px] active:shadow-[inset_0_1px_0_rgba(255,255,255,0.3),0_1px_0_#9A3F12,0_4px_8px_-4px_rgba(232,106,42,0.5)] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-brand disabled:cursor-not-allowed disabled:opacity-45";const SOFT3D = "rounded-xl border border-border-strong bg-surface-sunken px-4 py-2.5 text-sm font-medium shadow-[0_3px_0_#D2CFC7,0_8px_14px_-8px_rgba(32,32,30,0.25)] transition-all hover:-translate-y-px hover:bg-border active:translate-y-[2px]";
+const BTN3D = "group relative inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-b from-brand to-brand-strong px-5 py-3 font-heading text-sm font-semibold text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.4),0_4px_0_#9A3F12,0_12px_20px_-8px_rgba(232,106,42,0.6)] transition-all before:pointer-events-none before:absolute before:inset-[3px] before:rounded-[9px] before:border before:border-dashed before:border-white/35 hover:-translate-y-px hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.4),0_5px_0_#9A3F12,0_16px_24px_-8px_rgba(232,106,42,0.65)] active:translate-y-[3px] active:shadow-[inset_0_1px_0_rgba(255,255,255,0.3),0_1px_0_#9A3F12,0_4px_8px_-4px_rgba(232,106,42,0.5)] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-brand disabled:cursor-not-allowed disabled:opacity-45 max-sm:gap-1.5 max-sm:rounded-lg max-sm:px-3 max-sm:py-2 max-sm:text-xs";const SOFT3D = "rounded-xl border border-border-strong bg-surface-sunken px-4 py-2.5 text-sm font-medium shadow-[0_3px_0_#D2CFC7,0_8px_14px_-8px_rgba(32,32,30,0.25)] transition-all hover:-translate-y-px hover:bg-border active:translate-y-[2px]";
 const GMAIL_INBOX = "https://mail.google.com/mail/u/0/#inbox";
 
 const ACTION_LABELS: Record<NextActionChoice, string> = {
@@ -71,6 +72,11 @@ export default function Replies({ cases, onStartCase, onSaveReply, onDecision, o
   const [escBusy, setEscBusy] = useState(false);
   const [escError, setEscError] = useState<string | null>(null);
   const [escConfirm, setEscConfirm] = useState(false);
+  // Clarification drafting: Fixora writes the itemised clarification email the
+  // moment the user picks "Request clarification" — editable, sent by them.
+  const [claDraft, setClaDraft] = useState<ComplaintDraft | null>(null);
+  const [claBusy, setClaBusy] = useState(false);
+  const [claError, setClaError] = useState<string | null>(null);
   // Ticks while you wait, so the demo-reply countdown reads live.
   const [now, setNow] = useState(nowMs());
 
@@ -93,11 +99,19 @@ export default function Replies({ cases, onStartCase, onSaveReply, onDecision, o
   const escGmail = escDraft
     ? `https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(escDraft.recipient.trim())}&su=${encodeURIComponent(escDraft.subject)}&body=${encodeURIComponent(escDraft.body)}`
     : "";
+  const claMailto = claDraft && current
+    ? `mailto:${encodeURIComponent(claDraft.recipient.trim())}?subject=${encodeURIComponent(claDraft.subject)}&body=${encodeURIComponent(claDraft.body)}`
+    : "";
+  const claGmail = claDraft
+    ? `https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(claDraft.recipient.trim())}&su=${encodeURIComponent(claDraft.subject)}&body=${encodeURIComponent(claDraft.body)}`
+    : "";
 
   function enterRead(id: string) {
     setEscDraft(null);
     setEscError(null);
     setEscConfirm(false);
+    setClaDraft(null);
+    setClaError(null);
     setView({ name: "read", id });
   }
 
@@ -168,6 +182,45 @@ export default function Replies({ cases, onStartCase, onSaveReply, onDecision, o
       setEscError(cause instanceof Error ? cause.message : "Fixora could not draft the escalation. Please try again.");
     } finally {
       setEscBusy(false);
+    }
+  }
+
+  // Asks the Groq clarification task for a short itemised clarification email
+  // built from the saved complaint and the points the reply left unanswered.
+  async function draftClarificationEmail() {
+    if (!current?.companyReply) return;
+    setClaBusy(true);
+    setClaError(null);
+    try {
+      const response = await fetch("/api/fixora/clarify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          company: current.company ?? current.details?.company,
+          issue: current.details?.issue ?? current.summary?.problem,
+          amount: current.details?.amount,
+          date: current.details?.date,
+          goal: current.details?.goal ?? current.summary?.desiredOutcome,
+          rawStory: current.rawStory,
+          complaint: current.complaintDraft?.body ?? "",
+          reply: current.companyReply.replyText,
+          unresolved: current.companyReply.unresolved,
+        }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(typeof data.error === "string" ? data.error : "Fixora could not draft the clarification. Please try again.");
+      if (typeof data.subject !== "string" || typeof data.message !== "string") {
+        throw new Error("Fixora returned an incomplete draft. Please try again.");
+      }
+      setClaDraft({
+        recipient: current.complaintDraft?.recipient ?? "",
+        subject: data.subject as string,
+        body: data.message as string,
+      });
+    } catch (cause) {
+      setClaError(cause instanceof Error ? cause.message : "Fixora could not draft the clarification. Please try again.");
+    } finally {
+      setClaBusy(false);
     }
   }
 
@@ -327,6 +380,89 @@ export default function Replies({ cases, onStartCase, onSaveReply, onDecision, o
             <><h3 className="mt-6 font-heading text-sm font-semibold text-muted">Fixora&apos;s other suggestions</h3><ul className="mt-2 space-y-2">{current.companyReply.options.map((entry) => <li key={entry} className="rounded-xl bg-surface-muted px-4 py-3 text-[15px]">{entry}</li>)}</ul></>
           )}
           </div>
+        {current.companyReply.decision?.action === "wait" && (
+          <motion.div
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ type: "spring", stiffness: 380, damping: 30 }}
+            className="mt-6 border-t border-dashed border-border-strong pt-6"
+          >
+            <h2 className="font-heading text-lg font-semibold">Waiting for the investigation</h2>
+            <p className="mt-2 text-sm leading-6 text-muted">
+              You chose to wait, so the ball is in the company&apos;s court. Here is what happens while you wait:
+            </p>
+            <ul className="mt-3 space-y-2 text-sm">
+              <li className="rounded-xl bg-surface-muted px-4 py-3">Their next update lands by email — <a href={GMAIL_INBOX} target="_blank" rel="noopener noreferrer" className="font-medium text-brand-strong underline decoration-brand/40 hover:decoration-brand">check Gmail</a> when you want an update, not on a fixed schedule. Investigations on {current.company ?? current.details?.company ?? "the company"}&apos;s side can take days to weeks.</li>
+              <li className="rounded-xl bg-surface-muted px-4 py-3">When that update arrives, come back here: you can change your decision below — for example <span className="font-medium">escalate</span> if they miss the timeline or stonewall, or paste the next reply into this case&apos;s flow.</li>
+              <li className="rounded-xl bg-surface-muted px-4 py-3">Nothing is needed from you right now, and the case stays in Fixora so you won&apos;t lose the thread.</li>
+            </ul>
+            <p className="mt-3 text-xs text-muted">If the waiting feels unreasonable instead, choose <span className="font-medium">Escalate</span> above and Fixora will draft the letter.</p>
+          </motion.div>
+        )}
+        {current.companyReply.decision?.action === "clarify" && (
+          <motion.div
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ type: "spring", stiffness: 380, damping: 30 }}
+            className="mt-6 border-t border-dashed border-border-strong pt-6"
+          >
+            <h2 className="font-heading text-base font-semibold">Fixora&apos;s clarification for them</h2>
+            <p className="mt-2 text-sm leading-6 text-muted">
+              Fixora turns the points their reply left unclear or unanswered into a short, polite clarification email. Edit anything below — you send it from Gmail yourself.
+            </p>
+            {claError && <p role="alert" className="mt-3 rounded-xl bg-danger-soft p-3 text-sm text-danger">{claError}</p>}
+            {!claDraft && (
+              <button type="button" onClick={draftClarificationEmail} disabled={claBusy} className={`${BTN3D} mt-4`}>
+                {claBusy ? "Drafting the clarification..." : "Draft my clarification"}
+              </button>
+            )}
+            {claDraft && (
+              <motion.div
+                initial={{ opacity: 0, y: 10, scale: 0.99 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                transition={{ type: "spring", stiffness: 360, damping: 28 }}
+              >
+                <div className="mt-3 space-y-2.5 rounded-2xl bg-surface-muted p-4">
+                  <label className="flex items-baseline gap-3 text-sm">
+                    <span className="w-8 shrink-0 text-xs font-medium text-muted">To</span>
+                    <input
+                      type="email"
+                      value={claDraft.recipient}
+                      onChange={(event) => setClaDraft({ ...claDraft, recipient: event.target.value })}
+                      placeholder="support@company.com"
+                      aria-label="Clarification recipient"
+                      className="w-full bg-transparent text-[15px] font-medium outline-none placeholder:text-subtle"
+                    />
+                  </label>
+                  <label className="flex items-baseline gap-3 text-sm">
+                    <span className="w-8 shrink-0 text-xs font-medium text-muted">Re</span>
+                    <input
+                      value={claDraft.subject}
+                      onChange={(event) => setClaDraft({ ...claDraft, subject: event.target.value })}
+                      aria-label="Clarification subject"
+                      className="w-full bg-transparent text-[15px] outline-none"
+                    />
+                  </label>
+                  <textarea
+                    value={claDraft.body}
+                    onChange={(event) => setClaDraft({ ...claDraft, body: event.target.value })}
+                    rows={8}
+                    aria-label="Clarification letter"
+                    className="w-full resize-y bg-transparent text-[15px] leading-7 outline-none"
+                  />
+                </div>
+                <div className="mt-4 flex flex-wrap items-center gap-3">
+                  <a href={claGmail} target="_blank" rel="noopener noreferrer" className={BTN3D}>Open in Gmail</a>
+                  <a href={claMailto} className="text-sm font-medium text-muted hover:text-foreground hover:underline">Another mail app</a>
+                  <button type="button" onClick={draftClarificationEmail} disabled={claBusy} className="text-sm font-medium text-brand-strong hover:underline">
+                    {claBusy ? "Redrafting..." : "Redraft"}
+                  </button>
+                </div>
+                <p className="mt-2 text-xs text-muted">Nothing is sent from Fixora — you have the final say, and their answer can be pasted back here as the next step.</p>
+              </motion.div>
+            )}
+          </motion.div>
+        )}
         {current.escalation?.sentConfirmed && !current.finalOutcome && (
           <div className="mt-6 border-t border-dashed border-border-strong pt-6">
             <h2 className="font-heading text-lg font-semibold">Escalated — awaiting the final outcome</h2>
