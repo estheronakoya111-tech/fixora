@@ -142,7 +142,10 @@ function StandingPanel() {
         }}
         // No rotateX/rotateY on phones at all — any 3D rotation value (even
         // 0°) is enough to soften text there.
-        style={reduce || lite ? { opacity } : { opacity, rotateX: settle, rotateY: cursorY }}
+        // Phones get no motion values at all: even a scroll-driven opacity
+        // below 1 keeps the panel on a composited layer, which drops
+        // subpixel text rendering and reads as blur while scrolling.
+        style={reduce || lite ? undefined : { opacity, rotateX: settle, rotateY: cursorY }}
         className={`relative ${reduce || lite ? "" : "will-change-transform"}`}
       >
         <div className="overflow-hidden rounded-[2rem] border border-border bg-surface shadow-lift">

@@ -44,9 +44,12 @@ export default function Intro({ onContinue }: { onContinue?: (payload: IntroPayl
         {/* Seam 3: the dark closer slides up as a rounded sheet with its own
             subtle reveal — simple, in-flow, no overlay tricks. */}
         <ClosingCta onStart={start} />
+        {/* Grain is decorative; on phones a mix-blend layer forces the whole
+            intro into one composited surface, which rasterizes every line of
+            text softer — so the grain stays desktop-only. */}
         <div
           aria-hidden
-          className="pointer-events-none absolute inset-0 rounded-[inherit] opacity-[0.07] mix-blend-multiply"
+          className="pointer-events-none absolute inset-0 rounded-[inherit] opacity-[0.07] mix-blend-multiply max-sm:hidden"
           style={{ backgroundImage: GRAIN }}
         />
       </div>

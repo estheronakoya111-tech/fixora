@@ -303,26 +303,44 @@ export default function Conversation({ initialStory, initialMessages, initialDet
       }
       setDraft(`${base}${finals}${interim}`);
     };
+    // Restarting instantly on end made Chrome reopen the mic back-to-back,
+    // which plays a start/stop "bloop" per cycle and reads as a glitch. A
+    // short breath between utterances keeps hands-free dictation smooth.
+    const RESTART_DELAY_MS = 350;
     rec.onend = () => {
-      // Hands-free continuation: each utterance ends its own session; as
-      // long as the mic is still toggled on, listen for the next one.
       if (wantListen.current) {
-        try {
-          rec.start();
-        } catch {
-          setListening(false);
-        }
+        window.setTimeout(() => {
+          // The user may have toggled the mic off during the breath.
+          if (!wantListen.current) {
+            setListening(false);
+            return;
+          }
+          try {
+            rec.start();
+          } catch {
+            wantListen.current = false;
+            setListening(false);
+          }
+        }, RESTART_DELAY_MS);
       } else {
         setListening(false);
       }
     };
     rec.onerror = (e) => {
+      // Real failures must clear the hands-off continuation flag, otherwise
+      // onend immediately restarts the failing session and the mic open/close
+      // sound loops like a glitch until the user gives up.
+      if (e.error === "no-speech") {
+        // Silence — normal in hands-free mode; onend will re-listen.
+        return;
+      }
+      wantListen.current = false;
       setListening(false);
       if (e.error === "not-allowed") {
         setMicError("Microphone access was denied. Allow mic access in your browser settings and try again.");
       } else if (e.error === "audio-capture") {
         setMicError("No microphone found. Plug one in and try again.");
-      } else if (e.error !== "aborted" && e.error !== "no-speech") {
+      } else if (e.error !== "aborted") {
         setMicError("Voice input stopped unexpectedly. Try again.");
       }
     };

@@ -256,7 +256,7 @@ export default function Learn({ onGo }: LearnProps) {
         {/* Guides */}
         <div className="mt-12 space-y-16">
           {LESSONS.map((l, i) => (
-            <Reveal key={l.id}>
+            <Reveal key={l.id} y={0}>
             <section id={`guide-${l.id}`} aria-labelledby={`h-${l.id}`} className="scroll-mt-20">
               <div className="flex items-center gap-4">
                 <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-brand-soft text-brand-strong shadow-card">
@@ -300,7 +300,7 @@ export default function Learn({ onGo }: LearnProps) {
         </div>
 
         {/* FAQ */}
-        <Reveal>
+        <Reveal y={0}>
         <section aria-labelledby="faq-heading" className="mt-16">
           <h2 id="faq-heading" className="font-heading text-2xl font-semibold tracking-tight">
             Common questions
