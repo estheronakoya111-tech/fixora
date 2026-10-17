@@ -70,6 +70,7 @@ Source: `scope.md > The POC Boundary`; account and dashboard details added by th
 - The user responds naturally, including corrections. Fixora acknowledges the latest answer or correction, and explains its relevance where helpful, before asking another question.
 - Each reply offers 0–4 short quick-reply suggestions when one fits the question; the user can always type freely instead.
 - Any question is optional: if the user taps skip or says they are not sure, the conversation moves on without pushing for the detail.
+- **Voice input:** the message box has a mic button where the browser offers speech recognition (Chrome). The user can speak instead of type; words stream into the input as they talk, and a pause ends the dictation session (the mic returns to its idle state) instead of silently reopening itself. Tapping the mic again resumes. Typing stays available everywhere.
 - Follow-up questions depend on the conversation and collect only important missing information one at a time: what happened, who was involved, when, relevant charges/details if supplied, available support, and the desired resolution.
 - The case does not appear on the dashboard just because the user typed a story or requested its first reflection. It is saved when the user answers the first clarification and continues.
 - The case is ready to continue when it clearly covers what happened, who is involved, available evidence or supporting information, and what outcome the user wants. Avoid unnecessary additional questions.
@@ -84,6 +85,7 @@ Acceptance criteria:
 - [ ] Follow-up questions adapt to the full conversation and stop when it is clear enough to prepare the case.
 - [ ] Quick-reply suggestions appear when relevant and typing always remains available.
 - [ ] Tapping skip or saying "not sure" moves the conversation forward without that detail.
+- [ ] The mic button dictates into the input where speech recognition is supported, silence stops dictation instead of restarting it, and typed text is preserved.
 - [ ] Fixora's replies stream in as they are generated instead of appearing all at once.
 
 Source: `scope.md > The Unique Kernel`, `The Core Loop`, `The POC Boundary`; interaction details added by the learner during PRD.
@@ -150,6 +152,9 @@ Source: PRD revision after the Learn page was added during build.
 - Opening the reply shows the reply text, what it means, what it did not address, and possible next steps.
 - Replies needing attention are visible from the Replies page, the dashboard, and a badge in the app's navigation.
 - A reply can be marked handled or moved back to needs-attention; handled replies stay readable in their own section.
+- **Ordered next steps:** a fresh reply offers exactly three choices — **Resolved**, **Request clarification**, and **Escalate**. The chosen step locks; the choice only reopens when a clarification's answer replaces the evaluation.
+- **Request clarification** drafts a short itemised question email from the points the reply left unanswered; the user edits and sends it from Gmail, confirms sending in Fixora, and one clearly labelled simulated answer returns to the same case.
+- **Escalate** drafts the formal escalation letter, sent once from Gmail; the confirmed send arms one clearly labelled simulated final outcome that either resolves the case or ends it with final guidance.
 
 Acceptance criteria:
 
@@ -158,6 +163,9 @@ Acceptance criteria:
 - [ ] The explanation covers meaning, unaddressed points, and possible next steps.
 - [ ] Replies needing attention are countable and visible from both the Replies page and app navigation.
 - [ ] A reply can be toggled between handled and needs attention, and handled replies stay accessible.
+- [ ] A fresh reply offers exactly Resolved, Request clarification, and Escalate, and the chosen step is locked afterwards.
+- [ ] A confirmed-sent clarification receives one simulated answer that replaces the evaluation and reopens the next-step choice.
+- [ ] A confirmed-sent escalation receives one simulated final outcome; resolved closes the case and unresolved saves final guidance as the end point.
 
 Source: `scope.md > The Core Loop`, `What “Working” Looks Like`, `The POC Boundary`; paste-real-reply, handled toggling, and navigation badge added by the learner during PRD.
 
