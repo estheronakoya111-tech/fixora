@@ -2,10 +2,10 @@
 
 import { useRef } from "react";
 import { useScroll } from "framer-motion";
-import Hero from "@/components/Hero";
-import ClosingCta from "@/components/ClosingCta";
-import CasePreview from "@/components/CasePreview";
-import HowItWorks from "@/components/HowItWorks";
+import Hero from "@/components/landing/Hero";
+import ClosingCta from "@/components/landing/ClosingCta";
+import CasePreview from "@/components/landing/CasePreview";
+import HowItWorks from "@/components/landing/HowItWorks";
 
 import type { IntroPayload } from "@/components/intro/useIntroSequence";
 

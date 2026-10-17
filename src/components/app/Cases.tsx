@@ -2,8 +2,8 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import Reveal from "@/components/Reveal";
-import SearchPopup, { type SearchMatch } from "@/components/SearchPopup";
+import Reveal from "@/components/ui/Reveal";
+import SearchPopup, { type SearchMatch } from "@/components/app/SearchPopup";
 import { FixoraLogo } from "@/components/logo/FixoraLogo";
 import type { Case as StoredCase } from "@/lib/types";
 

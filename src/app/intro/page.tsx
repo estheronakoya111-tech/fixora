@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import Intro from "@/components/Intro";
+import Intro from "@/components/landing/Intro";
 import { markIntroSeen, setIntroStory } from "@/lib/storage";
 
 // The animated intro lives at /intro so it can always be re-opened (e.g. to

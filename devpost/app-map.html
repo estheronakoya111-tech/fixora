@@ -116,8 +116,8 @@
       <h2 id="new-title">Features added after the first build</h2>
       <div class="panel">
         <details open><summary>Real-data dashboard chart</summary><p><code>src/components/ui/DashboardChart.tsx</code> plots cumulative started/sent cases per day from real <code>createdAt</code>/<code>sentAt</code> timestamps. The window stretches back to the first case so the curve always rises; date labels thin out on phones and always keep today visible.</p></details>
-        <details><summary>Cases manager redesign</summary><p><code>src/components/Cases.tsx</code> — card list with status edge colors, a Understand → Draft → Sent → Reply progress track (reads “Done” when finished), filter chips, a custom sort menu, next-step hints, and confirmed delete. Fully Fixora-tokened colors.</p></details>
-        <details><summary>Reply decisions: Wait · Clarify · Escalate</summary><p><code>src/components/Replies.tsx</code> — Wait shows a next-steps panel; Clarify asks <code>/api/fixora/clarify</code> → <code>draftClarification</code> in <code>src/lib/fixora.ts</code> for an editable itemised question email with a Gmail handoff; Escalate drafts the formal letter as before. <code>decideNextAction</code> in <code>page.tsx</code> records the choice and clears attention.</p></details>
+        <details><summary>Cases manager redesign</summary><p><code>src/components/app/Cases.tsx</code> — card list with status edge colors, a Understand → Draft → Sent → Reply progress track (reads “Done” when finished), filter chips, a custom sort menu, next-step hints, and confirmed delete. Fully Fixora-tokened colors.</p></details>
+        <details><summary>Reply decisions: Wait · Clarify · Escalate</summary><p><code>src/components/app/Replies.tsx</code> — Wait shows a next-steps panel; Clarify asks <code>/api/fixora/clarify</code> → <code>draftClarification</code> in <code>src/lib/fixora.ts</code> for an editable itemised question email with a Gmail handoff; Escalate drafts the formal letter as before. <code>decideNextAction</code> in <code>page.tsx</code> records the choice and clears attention.</p></details>
         <details><summary>Detailed chat replies</summary><p>The system prompt in <code>src/lib/fixora.ts</code> now requires 4–8 sentence explanations (understanding → what it means → why the next question), with an 800-token cap.</p></details>
         <details><summary>Mobile pass</summary><p>All page CTAs trim to <code>px-3 / py-2</code> on phones; the Fixora logo shows the full wordmark below <code>sm</code>; filter chips wrap instead of scrolling horizontally.</p></details>
       </div>
@@ -128,7 +128,7 @@
       <p class="note">Use this route in the editor while tracing the behavior. It is a reference route; it is not a claim that every stop has been toured interactively yet.</p>
       <ol class="route">
         <li><div><strong>Entry:</strong> <code>src/app/page.tsx</code> → <code>startConversation</code>. Creates a case and switches to the conversation screen.</div></li>
-        <li><div><strong>Conversation:</strong> <code>src/components/Conversation.tsx</code> → its submit/fetch flow calls <code>/api/fixora</code> and renders streamed assistant text.</div></li>
+        <li><div><strong>Conversation:</strong> <code>src/components/app/Conversation.tsx</code> → its submit/fetch flow calls <code>/api/fixora</code> and renders streamed assistant text.</div></li>
         <li><div><strong>Persistence/result:</strong> <code>src/lib/storage.ts</code> → <code>upsertCase</code> saves the case; <code>Dashboard.tsx</code>, <code>Cases.tsx</code>, and <code>Replies.tsx</code> show the saved state.</div></li>
         <li><div><strong>Reply decision:</strong> <code>Replies.tsx</code> → <code>onDecision</code> → <code>decideNextAction</code> in <code>page.tsx</code> records the choice; “Request clarification” additionally calls <code>/api/fixora/clarify</code> → <code>draftClarification</code> (Groq) for an editable email draft.</div></li>
       </ol>
@@ -138,11 +138,11 @@
       <h2 id="change-title">To change this, start here</h2>
       <div class="panel">
         <details open><summary>Change startup/loading behavior</summary><p>Start at <code>src/app/page.tsx</code> near <code>booted</code>, <code>checkingIntro</code>, and the startup status block.</p></details>
-        <details><summary>Change the conversation or questions</summary><p>Start at <code>src/components/Conversation.tsx</code> for the interaction and <code>src/lib/fixora.ts</code> for the server prompt and response validation.</p></details>
+        <details><summary>Change the conversation or questions</summary><p>Start at <code>src/components/app/Conversation.tsx</code> for the interaction and <code>src/lib/fixora.ts</code> for the server prompt and response validation.</p></details>
         <details><summary>Change what is saved</summary><p>Start at <code>src/lib/types.ts</code> for shapes and <code>src/lib/storage.ts</code> for browser persistence.</p></details>
         <details><summary>Change the complaint or reply AI tasks</summary><p>Start at <code>src/lib/fixora.ts</code>, then inspect <code>src/app/api/fixora/draft/route.ts</code> or <code>src/app/api/fixora/reply/route.ts</code>.</p></details>
         <details><summary>Change the dashboard chart</summary><p>Start at <code>src/components/ui/DashboardChart.tsx</code> — <code>buildSeries</code> decides the date window and the cumulative started/sent counts; the pills and tooltip live in the same file.</p></details>
-        <details><summary>Change reply decisions or the clarification email</summary><p>Start at <code>src/components/Replies.tsx</code>, <code>decideNextAction</code> in <code>src/app/page.tsx</code>, and <code>draftClarification</code> in <code>src/lib/fixora.ts</code> behind <code>/api/fixora/clarify</code>.</p></details>
+        <details><summary>Change reply decisions or the clarification email</summary><p>Start at <code>src/components/app/Replies.tsx</code>, <code>decideNextAction</code> in <code>src/app/page.tsx</code>, and <code>draftClarification</code> in <code>src/lib/fixora.ts</code> behind <code>/api/fixora/clarify</code>.</p></details>
       </div>
     </section>
 

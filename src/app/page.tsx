@@ -3,16 +3,16 @@
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
-import Auth, { type AuthProfile } from "@/components/Auth";
-import AppSidebar from "@/components/AppSidebar";
-import Case from "@/components/Case";
-import Cases from "@/components/Cases";
-import Conversation, { type CaseDetails } from "@/components/Conversation";
-import Replies from "@/components/Replies";
-import Dashboard from "@/components/Dashboard";
-import Footer from "@/components/Footer";
-import Learn from "@/components/Learn";
-import ConfirmDialog from "@/components/ConfirmDialog";
+import Auth, { type AuthProfile } from "@/components/app/Auth";
+import AppSidebar from "@/components/app/AppSidebar";
+import Case from "@/components/app/Case";
+import Cases from "@/components/app/Cases";
+import Conversation, { type CaseDetails } from "@/components/app/Conversation";
+import Replies from "@/components/app/Replies";
+import Dashboard from "@/components/app/Dashboard";
+import Footer from "@/components/app/Footer";
+import Learn from "@/components/app/Learn";
+import ConfirmDialog from "@/components/app/ConfirmDialog";
 import { FixoraLogo } from "@/components/logo/FixoraLogo";
 import {
   deleteCase,

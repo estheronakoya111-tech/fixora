@@ -2,8 +2,8 @@
 
 import { useMemo, useState } from "react";
 import { motion, useReducedMotion } from "framer-motion";
-import Reveal from "@/components/Reveal";
-import SearchPopup, { type SearchMatch } from "@/components/SearchPopup";
+import Reveal from "@/components/ui/Reveal";
+import SearchPopup, { type SearchMatch } from "@/components/app/SearchPopup";
 import { FixoraLogo } from "@/components/logo/FixoraLogo";
 import ComplaintChart from "@/components/ui/DashboardChart";
 import type { Case as SavedCase, CaseStatus } from "@/lib/types";

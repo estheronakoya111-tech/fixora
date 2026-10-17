@@ -11,7 +11,7 @@ import {
   useTransform,
   type MotionValue,
 } from "framer-motion";
-import Reveal from "@/components/Reveal";
+import Reveal from "@/components/ui/Reveal";
 import { StageDecor, WordReveal } from "@/components/ui/stage";
 
 // --- CTA that leans toward the cursor before your finger lands

@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { Geist, Inter } from "next/font/google";
-import FixoraCursor from "@/components/FixoraCursor";
+import FixoraCursor from "@/components/ui/FixoraCursor";
 import "./globals.css";
 
 // Geist: headings, navigation, buttons, prominent UI.

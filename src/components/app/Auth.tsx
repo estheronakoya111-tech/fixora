@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
-import FixoraLogo from "./logo/FixoraLogo";
+import FixoraLogo from "@/components/logo/FixoraLogo";
 import { getProfiles, saveProfiles, setCurrentEmail } from "@/lib/storage";
 
 function CrossedPaperForms() {

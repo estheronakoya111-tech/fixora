@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
-import Reveal from "@/components/Reveal";
+import Reveal from "@/components/ui/Reveal";
 import { nowMs } from "@/lib/case";
 import type { Case as StoredCase, CompanyReplyAnalysis, ComplaintDraft, NextActionChoice } from "@/lib/types";
 

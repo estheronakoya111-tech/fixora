@@ -1,7 +1,7 @@
 "use client";
 
 import { PenLine, Mic, FolderOpen, FileText, Mail, MessageSquare, MessageCircleQuestion, ClipboardList, BarChart3, type LucideIcon } from "lucide-react";
-import Reveal from "@/components/Reveal";
+import Reveal from "@/components/ui/Reveal";
 
 type Block = { id: string; text: string; kind?: "button" };
 type Step = { focus: string; title: string; body: string };
