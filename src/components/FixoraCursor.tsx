@@ -83,11 +83,15 @@ export default function FixoraCursor() {
       ctx.globalCompositeOperation = "lighter";
       for (let i = 0; i < dots.length; i++) {
         const d = dots[i];
-        const age = (now - d.t) / DOT_LIFE;
-        const depth = i === dots.length - 1 ? 0 : 1 - i / (dots.length - 1); // 1 = head, 0 = tail
-        const life = 1 - age;
-        const radius = (3 + life * (5 + depth * 20)) * (0.25 + life * 0.75);
-        const alpha = (0.12 + life * depth * 0.85) * life;
+      // Clamp age: a rAF timestamp can be slightly earlier than the
+      // performance.now() captured when the dot/ring was pushed (the frame's
+      // start time precedes the event), which produced negative ages and
+      // radii below 0 — throwing on ctx.arc.
+      const age = Math.min(1, Math.max(0, (now - d.t) / DOT_LIFE));
+      const depth = i === dots.length - 1 ? 0 : 1 - i / (dots.length - 1); // 1 = head, 0 = tail
+      const life = 1 - age;
+      const radius = Math.max(0.1, (3 + life * (5 + depth * 20)) * (0.25 + life * 0.75));
+      const alpha = (0.12 + life * depth * 0.85) * life;
         if (alpha <= 0.01) continue;
         ctx.globalAlpha = alpha;
         ctx.drawImage(
@@ -103,10 +107,12 @@ export default function FixoraCursor() {
       ctx.strokeStyle = "#E86A2A";
       ctx.lineWidth = 1.5;
       for (const r of rings) {
-        const age = (now - r.t) / RING_LIFE;
+        const age = Math.min(1, Math.max(0, (now - r.t) / RING_LIFE));
         ctx.globalAlpha = (1 - age) * 0.5;
         ctx.beginPath();
-        ctx.arc(r.x, r.y, 6 + age * 16, 0, Math.PI * 2);
+        // Math.max guards against a sub-zero radius even if age ever slips
+        // below 0 — ctx.arc throws on any negative radius.
+        ctx.arc(r.x, r.y, Math.max(0.1, 6 + age * 16), 0, Math.PI * 2);
         ctx.stroke();
       }
 

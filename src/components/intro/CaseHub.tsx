@@ -223,7 +223,7 @@ export default function CaseHub({
 
           <motion.div
             aria-hidden
-            className="pointer-events-none absolute h-24 w-56 rounded-full bg-brand/40 blur-3xl"
+            className="pointer-events-none absolute h-24 w-56 rounded-full bg-[radial-gradient(closest-side,rgba(232,106,42,0.4),transparent)]"
             animate={{ left: GEO.left[active] - 6, top: GEO.top[active] - 20 }}
             transition={spring}
           />

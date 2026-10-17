@@ -158,7 +158,7 @@ export function FixoraLogo({
       <span className="relative inline-flex">
         <motion.span
           aria-hidden
-          className="absolute -bottom-[0.07em] left-[8%] h-[0.09em] w-[78%] rounded-[50%] bg-[#3E4A55] blur-[2px]"
+          className="absolute -bottom-[0.07em] left-[8%] h-[0.09em] w-[78%] rounded-[50%] bg-[#3E4A55] opacity-60"
           animate={{
             scaleX: lifted ? 1.25 : 1,
             opacity: lifted ? 0.26 : 0.14,

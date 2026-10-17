@@ -17,6 +17,18 @@ export const GRAIN =
  * and put content in a `relative` wrapper above it.
  */
 export function StageDecor({ glowWarm, glowCalm, showChecker = true }: { glowWarm?: number; glowCalm?: number; showChecker?: boolean }) {
+  // The film-grain blend layer is decorative and desktop-only: a
+  // mix-blend-mode surface spanning the section forces the whole subtree into
+  // one composited layer on mobile, which rasterizes every line of text
+  // softer while the section scrolls past.
+  const [lite, setLite] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia("(pointer: coarse), (max-width: 767px)");
+    const update = () => setLite(mq.matches);
+    update();
+    mq.addEventListener("change", update);
+    return () => mq.removeEventListener("change", update);
+  }, []);
   return (
     <>
       {/* Warm light cone at the top of the stage */}
@@ -45,22 +57,24 @@ export function StageDecor({ glowWarm, glowCalm, showChecker = true }: { glowWar
       {/* Drifting soft glows (colors from the design system) */}
       <motion.div
         aria-hidden
-        className="pointer-events-none absolute -left-32 top-1/3 -z-10 h-80 w-80 rounded-full bg-brand/20 blur-[110px]"
+        className="pointer-events-none absolute -left-32 top-1/3 -z-10 h-80 w-80 rounded-full bg-[radial-gradient(closest-side,rgba(232,106,42,0.2),transparent)]"
         animate={{ y: glowWarm ?? 0 }}
         transition={{ duration: 0.9, ease: "easeOut" }}
       />
       <motion.div
         aria-hidden
-        className="pointer-events-none absolute -right-24 bottom-0 -z-10 h-72 w-72 rounded-full bg-positive/15 blur-[100px]"
+        className="pointer-events-none absolute -right-24 bottom-0 -z-10 h-72 w-72 rounded-full bg-[radial-gradient(closest-side,rgba(95,138,108,0.15),transparent)]"
         animate={{ y: glowCalm ?? 0 }}
         transition={{ duration: 0.9, ease: "easeOut" }}
       />
-      {/* Film grain over everything */}
-      <div
-        aria-hidden
-        className="pointer-events-none absolute inset-0 opacity-[0.12] mix-blend-overlay"
-        style={{ backgroundImage: GRAIN }}
-      />
+{/* Film grain over everything — desktop only (see lite above) */}
+      {!lite && (
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-0 opacity-[0.12] mix-blend-overlay"
+          style={{ backgroundImage: GRAIN }}
+        />
+      )}
     </>
   );
 }

@@ -274,10 +274,10 @@ export default function Case({ details, initialDraft, initialEvidence = [], init
 
   return (
     <div className="relative min-h-dvh overflow-hidden pb-36 text-foreground">
-      <div aria-hidden className="pointer-events-none absolute -right-24 -top-24 h-96 w-96 rounded-full bg-brand-100/60 blur-3xl" />
-      <div aria-hidden className="pointer-events-none absolute -bottom-24 -left-24 h-80 w-80 rounded-full bg-positive-soft blur-3xl" />
+      <div aria-hidden className="pointer-events-none absolute -right-24 -top-24 h-96 w-96 rounded-full bg-[radial-gradient(closest-side,rgba(253,229,211,0.6),transparent)]" />
+      <div aria-hidden className="pointer-events-none absolute -bottom-24 -left-24 h-80 w-80 rounded-full bg-[radial-gradient(closest-side,rgba(231,240,234,0.9),transparent)]" />
 
-      <main className="relative z-10 mx-auto w-full max-w-3xl px-5 pb-28 pt-4 md:px-8 md:pb-12">
+      <main className="relative z-10 mx-auto w-full max-w-7xl px-5 pb-28 pt-4 md:px-8 md:pb-12">
         {/* Kept mounted at every stage so "Add evidence" always works. */}
         <input ref={fileInput} type="file" multiple hidden onChange={(e) => addFiles(e.target.files)} />
 

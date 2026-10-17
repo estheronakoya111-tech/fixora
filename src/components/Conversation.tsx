@@ -129,7 +129,7 @@ export default function Conversation({ initialStory, initialMessages, initialDet
       {
         id: "welcome-back",
         role: "assistant" as const,
-        content: `Welcome back — good to see you again. ${about} Everything you told me so far is right here, so there's nothing to repeat. Where would you like to pick up — keep going, add something you just remembered, or talk through how things have been going?`,
+        content: `Welcome back. ${about} Pick up where we left off, or add something new.`,
       },
     ];
   });
@@ -146,8 +146,13 @@ export default function Conversation({ initialStory, initialMessages, initialDet
   const [confirmDiscard, setConfirmDiscard] = useState(false);
 
   const started = useRef(false);
+  // "Stuck" = the viewport follows the newest message. It starts true so a
+  // conversation — new or reopened — always lands on the latest turn instead
+  // of the top of the history; only a deliberate scroll-up releases it (see
+  // the direction-aware scroll listener below).
   const stuck = useRef(true);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const chatScrollRef = useRef<HTMLDivElement>(null);
   const endRef = useRef<HTMLDivElement>(null);
   const recRef = useRef<SR | null>(null);
   // Whether the user still wants the mic active; false makes onend() a real
@@ -203,6 +208,12 @@ export default function Conversation({ initialStory, initialMessages, initialDet
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Entering the conversation lands on the newest message right away — an
+  // instant jump, no glide from wherever the previous screen left the page.
+  useEffect(() => {
+    endRef.current?.scrollIntoView({ behavior: "auto", block: "end" });
+  }, []);
+
 
   useEffect(() => {
     onUpdate?.({
@@ -211,19 +222,43 @@ export default function Conversation({ initialStory, initialMessages, initialDet
     });
   }, [messages, card, onUpdate]);
 
+  // Whether the last scroll moved up: the follow only releases on a scroll
+  // UP through the message container (someone reading history). Rising
+  // content or the follow's own downward travel never releases it, so a
+  // reply that is being streamed keeps the list pinned to the newest text.
+  const lastY = useRef(0);
   useEffect(() => {
+    const el = chatScrollRef.current;
+    if (!el) return;
     const onScroll = () => {
-      const gap = document.documentElement.scrollHeight - window.scrollY - window.innerHeight;
-      stuck.current = gap < 140;
-      setShowJump(gap > 320);
+      const y = el.scrollTop;
+      const gap = el.scrollHeight - y - el.clientHeight;
+      if (y < lastY.current && gap > 140) stuck.current = false;
+      else if (gap < 140) stuck.current = true;
+      lastY.current = y;
+      setShowJump(gap > 200);
     };
-    window.addEventListener("scroll", onScroll, { passive: true });
-    return () => window.removeEventListener("scroll", onScroll);
+    el.addEventListener("scroll", onScroll, { passive: true });
+    return () => el.removeEventListener("scroll", onScroll);
   }, []);
 
+  // The viewport follows the newest content while the user is "at" the bottom.
+  // A streaming reply re-shapes its paragraph every few dozen milliseconds;
+  // restarting a smooth scroll each time crawls behind the text, so stream
+  // updates jump instantly and only finished messages glide. The user can
+  // still read older messages: scrolling up releases the follow until they
+  // come back to the bottom, and every scroll lands the latest message just
+  // above this screen's sticky composer — the anchor carries the scroll
+  // margin for the composer's height (max-sm:hidden keeps the message strip
+  // visible behind the bar on phones, md and up gives it room to breathe).
+  //
+  // Messages enter by dropping from above and settling down — never rising
+  // from underneath — so a new turn reads as arriving at the reader, whatever
+  // button (intro chip, quick reply, send) produced it.
   useEffect(() => {
-    if (stuck.current) endRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
-  }, [messages, live, error, card.ready]);
+    if (!stuck.current) return;
+    endRef.current?.scrollIntoView({ behavior: live && !reduce ? "auto" : "smooth", block: "end" });
+  }, [messages, live, error, card.ready, reduce]);
 
   useEffect(() => {
     const el = inputRef.current;
@@ -357,13 +392,22 @@ export default function Conversation({ initialStory, initialMessages, initialDet
   const showConfirm = card.ready && !busy && !live && last?.role === "assistant";
   const chipLabel = card.amount ?? card.issue ?? "New case";
   const details = [["Company", card.company], ["Issue", card.issue], ["Amount", card.amount], ["Date", card.date], ["Goal", card.goal]] as const;
-  const fade = reduce ? {} : { initial: { opacity: 0, y: 10 }, animate: { opacity: 1, y: 0 }, transition: { duration: 0.3, ease: "easeOut" as const } };
+  // Messages and the confirm card enter by dropping from above and settling
+  // down — never rising from underneath — so a new turn reads as arriving at
+  // the reader, whatever button (starter chip, quick reply, send) produced it.
+  const fade = reduce ? {} : { initial: { opacity: 0, y: -12 }, animate: { opacity: 1, y: 0 }, transition: { duration: 0.3, ease: "easeOut" as const } };
 
   return (
-    <div className="relative flex min-h-dvh flex-col text-foreground">
-      <div aria-hidden className="pointer-events-none fixed -right-24 -top-24 h-96 w-96 rounded-full bg-brand-100/60 blur-3xl" />
+    // Standard chat shell (the pattern every chat app uses, per the common
+    // implementations: keep the overflow container pinned to the bottom
+    // unless the user scrolls up): a full-height column where ONLY the
+    // message list scrolls and the composer sits fixed below it. The window
+    // itself never scrolls, so the newest message is always exactly one
+    // anchored list away.
+    <div className="relative flex h-dvh flex-col overflow-hidden text-foreground">
+      <div aria-hidden className="pointer-events-none fixed -right-24 -top-24 h-96 w-96 rounded-full bg-[radial-gradient(closest-side,rgba(253,229,211,0.6),transparent)]" />
 
-      <header className="sticky top-0 z-30 bg-background/80 backdrop-blur-md">
+      <header className="relative z-30 bg-background/80 backdrop-blur-md">
         <div className="mx-auto flex h-14 w-full max-w-3xl items-center justify-between px-5">
           <div className="relative flex items-center gap-2">
             {(card.company || card.issue || card.amount) && (
@@ -435,9 +479,9 @@ export default function Conversation({ initialStory, initialMessages, initialDet
         )}
       </AnimatePresence>
 
-      <main className="relative z-10 mx-auto flex w-full max-w-4xl flex-1 flex-col px-5 pb-6" aria-live="polite">
+      <main ref={chatScrollRef} className="relative z-10 mx-auto w-full max-w-4xl flex-1 overflow-y-auto overscroll-contain px-5 pb-6" aria-live="polite">
         {empty ? (
-          <motion.div {...fade} className="flex flex-1 flex-col items-center justify-center py-16 text-center">
+          <motion.div {...fade} className="flex min-h-full flex-col items-center justify-center py-16 text-center">
             <span className="flex h-12 w-12 items-center justify-center overflow-hidden rounded-2xl bg-surface shadow-lift"><FixoraMark className="scale-110" /></span>
             <h1 className="mt-5 font-heading text-3xl font-semibold tracking-tight">What&apos;s gone wrong?</h1>
             <p className="mt-2 max-w-sm text-muted">Tell me in your own words, or pick a place to start. You can talk or type.</p>
@@ -500,7 +544,7 @@ export default function Conversation({ initialStory, initialMessages, initialDet
             <AnimatePresence>
               {showConfirm && (
                 <motion.div
-                  initial={{ opacity: 0, y: 14 }}
+                  initial={{ opacity: 0, y: -14 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0 }}
                   className="ml-10 rounded-3xl bg-surface p-5 shadow-lift"
@@ -531,7 +575,7 @@ export default function Conversation({ initialStory, initialMessages, initialDet
         )}
       </main>
 
-      <div className="sticky bottom-16 z-20 bg-gradient-to-t from-background via-background/95 to-transparent pb-4 pt-8 md:bottom-0">
+      <div className="relative z-20 shrink-0 bg-gradient-to-t from-background via-background/95 to-transparent pb-[calc(5.75rem+env(safe-area-inset-bottom))] pt-3 md:pb-2">
         <div className="relative mx-auto w-full max-w-3xl px-5">
           <AnimatePresence>
             {showJump && (

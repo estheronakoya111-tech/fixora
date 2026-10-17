@@ -14,6 +14,9 @@ type RepliesProps = {
   onStartCase: () => void;
   onSaveReply: (caseId: string, reply: CompanyReplyAnalysis) => void;
   onDecision: (caseId: string, action: NextActionChoice) => void;
+  onResolveReply: (caseId: string) => void;
+  onSaveClarificationDraft: (caseId: string, draft: ComplaintDraft) => void;
+  onClarificationSent: (caseId: string) => void;
   onSaveEscalationDraft: (caseId: string, draft: ComplaintDraft) => void;
   onEscalationSent: (caseId: string) => void;
   onOutcomeResolved: (caseId: string) => void;
@@ -27,7 +30,13 @@ const ACTION_LABELS: Record<NextActionChoice, string> = {
   wait: "Wait for the investigation",
   clarify: "Request clarification",
   escalate: "Escalate the complaint",
+  resolved: "Resolved",
 };
+
+// The fresh-reply choice set: the user closes it as Resolved, asks for
+// clarification, or escalates. "Wait" is no longer offered (legacy saved
+// wait decisions still render their panel below).
+const DECIDE_BUTTONS: NextActionChoice[] = ["resolved", "clarify", "escalate"];
 
 function formatDate(value?: number) {
   if (!value) return "Date not recorded";
@@ -61,7 +70,7 @@ async function explain(target: StoredCase, text: string): Promise<Explanation> {
   };
 }
 
-export default function Replies({ cases, onStartCase, onSaveReply, onDecision, onSaveEscalationDraft, onEscalationSent, onOutcomeResolved, onGuidanceSaved }: RepliesProps) {
+export default function Replies({ cases, onStartCase, onSaveReply, onDecision, onResolveReply, onSaveClarificationDraft, onClarificationSent, onSaveEscalationDraft, onEscalationSent, onOutcomeResolved, onGuidanceSaved }: RepliesProps) {
   const [view, setView] = useState<View>({ name: "list" });
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
@@ -77,6 +86,7 @@ export default function Replies({ cases, onStartCase, onSaveReply, onDecision, o
   const [claDraft, setClaDraft] = useState<ComplaintDraft | null>(null);
   const [claBusy, setClaBusy] = useState(false);
   const [claError, setClaError] = useState<string | null>(null);
+  const [claConfirm, setClaConfirm] = useState(false);
   // Ticks while you wait, so the demo-reply countdown reads live.
   const [now, setNow] = useState(nowMs());
 
@@ -107,17 +117,28 @@ export default function Replies({ cases, onStartCase, onSaveReply, onDecision, o
     : "";
 
   function enterRead(id: string) {
+    const found = cases.find((item) => item.id === id);
     setEscDraft(null);
     setEscError(null);
     setEscConfirm(false);
-    setClaDraft(null);
+    // A saved, not-yet-sent clarification draft reopens for editing; a sent
+    // round stays closed (the status block below covers it).
+    setClaDraft(found?.clarification?.sentConfirmed ? null : found?.clarification?.draft ?? null);
     setClaError(null);
+    setClaConfirm(false);
     setView({ name: "read", id });
   }
 
   function updateEscDraft(next: ComplaintDraft) {
     setEscDraft(next);
     if (current) onSaveEscalationDraft(current.id, next);
+  }
+
+  // Clarification draft edits persist on every change — a refresh keeps the
+  // draft exactly like the escalation draft does.
+  function updateClaDraft(next: ComplaintDraft) {
+    setClaDraft(next);
+    if (current) onSaveClarificationDraft(current.id, next);
   }
 
   function openPaste(id: string) {
@@ -354,28 +375,37 @@ export default function Replies({ cases, onStartCase, onSaveReply, onDecision, o
           {current.companyReply.decision && (
             <p className="mt-2 text-sm leading-6 text-muted">
               You chose <span className="font-semibold text-foreground">{ACTION_LABELS[current.companyReply.decision.action]}</span>
-              {current.companyReply.decision.action === "escalate" ? " — the escalation steps are below." : "."} You can change it below while the complaint is open.
+              {current.companyReply.decision.action === "resolved"
+                ? " — this complaint is closed in Fixora."
+                : current.companyReply.decision.action === "wait"
+                ? " — the case stays open here; if the wait drags on, the one step change left is escalate (in the panel below)."
+                : current.companyReply.decision.action === "clarify"
+                  ? " — draft and send your clarification below, and their answer comes back to this case."
+                  : " — the escalation steps are below."}{" "}The step is locked once chosen, so the workflow only moves forward.
             </p>
           )}
-          <div className="mt-4 flex flex-wrap gap-2">
-            {(Object.keys(ACTION_LABELS) as NextActionChoice[]).map((action) => (
-              <button
-                key={action}
-                type="button"
-                onClick={() => onDecision(current.id, action)}
-                disabled={current.companyReply?.decision?.action === action || current.escalation?.sentConfirmed}
-                className={`rounded-xl px-4 py-2.5 text-sm font-medium transition-all ${
-                  current.companyReply?.recommendation?.action === action
-                    ? "bg-brand-soft font-semibold text-brand-strong ring-2 ring-brand/40 hover:bg-brand-soft/80"
-                    : action === "escalate"
-                      ? "border border-dashed border-brand/60 bg-transparent text-brand-strong hover:bg-brand-soft/40"
-                      : SOFT3D
-                } ${current.companyReply?.decision?.action === action ? "font-semibold" : ""}`}
-              >
-                {ACTION_LABELS[action]}
-              </button>
-            ))}
-          </div>
+          {!current.companyReply.decision && (
+            <div className="mt-4 flex flex-wrap gap-2">
+              {DECIDE_BUTTONS.map((action) => (
+                <button
+                  key={action}
+                  type="button"
+                  onClick={() => action === "resolved" ? onResolveReply(current.id) : onDecision(current.id, action)}
+                  className={`rounded-xl px-4 py-2.5 text-sm font-medium transition-all ${
+                    current.companyReply?.recommendation?.action === action
+                      ? "bg-brand-soft font-semibold text-brand-strong ring-2 ring-brand/40 hover:bg-brand-soft/80"
+                      : action === "resolved"
+                        ? "border border-positive/50 bg-positive-soft text-positive-strong hover:bg-positive-soft/80"
+                        : action === "escalate"
+                          ? "border border-dashed border-brand/60 bg-transparent text-brand-strong hover:bg-brand-soft/40"
+                          : SOFT3D
+                  }`}
+                >
+                  {ACTION_LABELS[action]}
+                </button>
+              ))}
+            </div>
+          )}
           {current.companyReply.options.length > 0 && (
             <><h3 className="mt-6 font-heading text-sm font-semibold text-muted">Fixora&apos;s other suggestions</h3><ul className="mt-2 space-y-2">{current.companyReply.options.map((entry) => <li key={entry} className="rounded-xl bg-surface-muted px-4 py-3 text-[15px]">{entry}</li>)}</ul></>
           )}
@@ -393,10 +423,13 @@ export default function Replies({ cases, onStartCase, onSaveReply, onDecision, o
             </p>
             <ul className="mt-3 space-y-2 text-sm">
               <li className="rounded-xl bg-surface-muted px-4 py-3">Their next update lands by email — <a href={GMAIL_INBOX} target="_blank" rel="noopener noreferrer" className="font-medium text-brand-strong underline decoration-brand/40 hover:decoration-brand">check Gmail</a> when you want an update, not on a fixed schedule. Investigations on {current.company ?? current.details?.company ?? "the company"}&apos;s side can take days to weeks.</li>
-              <li className="rounded-xl bg-surface-muted px-4 py-3">When that update arrives, come back here: you can change your decision below — for example <span className="font-medium">escalate</span> if they miss the timeline or stonewall, or paste the next reply into this case&apos;s flow.</li>
+              <li className="rounded-xl bg-surface-muted px-4 py-3">When that update arrives, come back here: paste the next reply into this case&apos;s flow, or use the single step change below — <span className="font-medium">Change step — escalate instead</span> — if they miss the timeline or stonewall.</li>
               <li className="rounded-xl bg-surface-muted px-4 py-3">Nothing is needed from you right now, and the case stays in Fixora so you won&apos;t lose the thread.</li>
             </ul>
-            <p className="mt-3 text-xs text-muted">If the waiting feels unreasonable instead, choose <span className="font-medium">Escalate</span> above and Fixora will draft the letter.</p>
+            <div className="mt-4 flex flex-wrap items-center gap-3">
+              <button type="button" onClick={() => onDecision(current.id, "escalate")} className={SOFT3D}>Change step — escalate instead</button>
+              <p className="text-xs text-muted">If the wait turns unreasonable, this is the one step change left — after it Fixora drafts the escalation letter.</p>
+            </div>
           </motion.div>
         )}
         {current.companyReply.decision?.action === "clarify" && (
@@ -416,7 +449,7 @@ export default function Replies({ cases, onStartCase, onSaveReply, onDecision, o
                 {claBusy ? "Drafting the clarification..." : "Draft my clarification"}
               </button>
             )}
-            {claDraft && (
+            {!current.clarification?.sentConfirmed && claDraft && (
               <motion.div
                 initial={{ opacity: 0, y: 10, scale: 0.99 }}
                 animate={{ opacity: 1, y: 0, scale: 1 }}
@@ -428,7 +461,7 @@ export default function Replies({ cases, onStartCase, onSaveReply, onDecision, o
                     <input
                       type="email"
                       value={claDraft.recipient}
-                      onChange={(event) => setClaDraft({ ...claDraft, recipient: event.target.value })}
+                      onChange={(event) => updateClaDraft({ ...claDraft, recipient: event.target.value })}
                       placeholder="support@company.com"
                       aria-label="Clarification recipient"
                       className="w-full bg-transparent text-[15px] font-medium outline-none placeholder:text-subtle"
@@ -438,28 +471,65 @@ export default function Replies({ cases, onStartCase, onSaveReply, onDecision, o
                     <span className="w-8 shrink-0 text-xs font-medium text-muted">Re</span>
                     <input
                       value={claDraft.subject}
-                      onChange={(event) => setClaDraft({ ...claDraft, subject: event.target.value })}
+                      onChange={(event) => updateClaDraft({ ...claDraft, subject: event.target.value })}
                       aria-label="Clarification subject"
                       className="w-full bg-transparent text-[15px] outline-none"
                     />
                   </label>
                   <textarea
                     value={claDraft.body}
-                    onChange={(event) => setClaDraft({ ...claDraft, body: event.target.value })}
+                    onChange={(event) => updateClaDraft({ ...claDraft, body: event.target.value })}
                     rows={8}
                     aria-label="Clarification letter"
                     className="w-full resize-y bg-transparent text-[15px] leading-7 outline-none"
                   />
                 </div>
-                <div className="mt-4 flex flex-wrap items-center gap-3">
-                  <a href={claGmail} target="_blank" rel="noopener noreferrer" className={BTN3D}>Open in Gmail</a>
-                  <a href={claMailto} className="text-sm font-medium text-muted hover:text-foreground hover:underline">Another mail app</a>
-                  <button type="button" onClick={draftClarificationEmail} disabled={claBusy} className="text-sm font-medium text-brand-strong hover:underline">
-                    {claBusy ? "Redrafting..." : "Redraft"}
-                  </button>
-                </div>
-                <p className="mt-2 text-xs text-muted">Nothing is sent from Fixora — you have the final say, and their answer can be pasted back here as the next step.</p>
+                <ol className="mt-4 space-y-4 text-sm">
+                  <li className="flex gap-3">
+                    <span aria-hidden className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-brand text-xs font-semibold text-white shadow-[0_2px_0_#9A3F12]">1</span>
+                    <div>
+                      <p className="font-medium">Open Gmail, already filled in</p>
+                      <div className="mt-2 flex flex-wrap items-center gap-2">
+                        <a href={claGmail} target="_blank" rel="noopener noreferrer" className={BTN3D}>Open in Gmail</a>
+                        <a href={claMailto} className="text-sm font-medium text-muted hover:text-foreground hover:underline">Another mail app</a>
+                        <button type="button" onClick={draftClarificationEmail} disabled={claBusy} className="text-sm font-medium text-brand-strong hover:underline">
+                          {claBusy ? "Redrafting..." : "Redraft"}
+                        </button>
+                      </div>
+                    </div>
+                  </li>
+                  <li className="flex gap-3">
+                    <span aria-hidden className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-brand text-xs font-semibold text-white shadow-[0_2px_0_#9A3F12]">2</span>
+                    <div className="min-w-0 flex-1">
+                      <p className="font-medium">Send it yourself, then tell Fixora</p>
+                      <p className="mt-1 text-muted">Nothing is sent from Fixora — you have the final say, and their answer lands back in this case.</p>
+                      {!claConfirm ? (
+                        <div className="mt-3">
+                          <button type="button" onClick={() => setClaConfirm(true)} className={SOFT3D}>I&apos;ve sent it</button>
+                        </div>
+                      ) : (
+                        <div className="mt-3 flex flex-wrap items-center gap-3 rounded-xl bg-surface-sunken p-3">
+                          <span className="text-sm font-medium">Did the clarification email actually leave your outbox?</span>
+                          <button type="button" onClick={() => onClarificationSent(current.id)} className={BTN3D}>Yes — it&apos;s sent</button>
+                          <button type="button" onClick={() => setClaConfirm(false)} className="text-sm font-medium text-muted hover:text-foreground">Not yet</button>
+                        </div>
+                      )}
+                    </div>
+                  </li>
+                </ol>
               </motion.div>
+            )}
+            {current.clarification?.sentConfirmed && (
+              <div className="mt-4 rounded-2xl bg-surface-muted p-4">
+                <p className="text-sm font-medium">Clarification sent on {formatDate(current.clarification.sentAt)} — this round is closed.</p>
+                {current.clarification.answered ? (
+                  <p className="mt-2 text-sm leading-6 text-muted">Their answer to your clarification has landed: it replaced this case&apos;s reply evaluation, and it is back in &ldquo;Needs your attention&rdquo; to review with a fresh next-step choice.</p>
+                ) : typeof current.replyDueAt === "number" && (
+                  current.replyDueAt > now
+                    ? <p className="mt-2 text-xs font-medium text-brand-strong">Simulated answer due around {new Date(current.replyDueAt).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })} · in {Math.max(1, Math.round((current.replyDueAt - now) / 1000))}s</p>
+                    : <p className="mt-2 text-xs font-medium text-brand-strong">Simulated answer arriving…</p>
+                )}
+              </div>
             )}
           </motion.div>
         )}

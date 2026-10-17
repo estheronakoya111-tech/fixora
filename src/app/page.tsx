@@ -62,6 +62,7 @@ const NEXT_ACTION_LABELS: Record<NextActionChoice, string> = {
   wait: "Wait for the investigation",
   clarify: "Request clarification",
   escalate: "Escalate the complaint",
+  resolved: "Resolved",
 };
 
 function detailsFor(record: StoredCase): CaseDetails {
@@ -137,10 +138,11 @@ export default function Page() {
 
   // Switching screens starts at the top — otherwise the browser keeps the
   // scroll offset from the previous screen and opens the new one mid-page or
-  // at its bottom. Two screens intentionally manage their own scroll target
-  // after this, so they are skipped:
-  //  - "cases" with a focused case (Cases.tsx scrolls that card into view)
-  //  - "conversation" (its own effect sticks to the newest message)
+  // at its bottom, then the user has to scroll back up. Two screens manage
+  // their own landing instead: the conversation opens pinned to the newest
+  // message (Conversation.tsx jumps there on mount, so a scroll-to-top here
+  // would cancel it), and "cases" with a focused case scrolls that card into
+  // view (Cases.tsx).
   useEffect(() => {
     if (screen === "cases" && focusCaseId) return;
     if (screen === "conversation") return;
@@ -327,6 +329,49 @@ export default function Page() {
     ));
   }, [updateCase]);
 
+  // One clarification round per reply — the mirror of the escalation flow:
+  // the user edits the draft (saved on every change), and confirming the
+  // send arms exactly one simulated answer on replyDueAt. The answer then
+  // replaces the saved evaluation and reopens the next-step choice.
+  const saveClarificationDraft = useCallback((id: string, draft: ComplaintDraft) => {
+    updateCase(id, (record) => !record.companyReply || record.clarification?.sentConfirmed
+      ? record
+      : pushEvent(
+          { ...record, clarification: { draft, draftedAt: record.clarification?.draftedAt ?? Date.now() } },
+          "Clarification drafted",
+          "reply",
+        ));
+  }, [updateCase]);
+
+  const confirmClarificationSent = useCallback((id: string) => {
+    updateCase(id, (record) => {
+      if (!record.companyReply || !record.clarification || record.clarification.sentConfirmed) return record;
+      const sentAt = Date.now();
+      return pushEvent(
+        { ...record, clarification: { ...record.clarification, sentAt, sentConfirmed: true }, replyDueAt: toReplyDueAt(sentAt) },
+        "Clarification sent — waiting for the answer",
+        "reply",
+      );
+    });
+  }, [updateCase]);
+
+  // "Resolved" from the reply read view: the user considers this complaint
+  // handled — records the choice, marks the reply handled, and closes the
+  // case in Fixora. One-way: the case lands in resolved status.
+  const resolveReplyCase = useCallback((id: string) => {
+    updateCase(id, (record) => !record.companyReply
+      ? record
+      : pushEvent(
+          {
+            ...record,
+            companyReply: { ...record.companyReply, decision: { action: "resolved", at: nowMs() }, handled: true },
+            status: "resolved" as CaseStatus,
+          },
+          "Case marked resolved",
+          "reply",
+        ));
+  }, [updateCase]);
+
   // Recording the next-action decision clears "needs attention": the reply
   // has been read and acted on. The choice drives what happens next: escalate
   // opens the escalation flow on the Replies screen, and the case stays
@@ -393,9 +438,19 @@ export default function Page() {
             throw new Error("Incomplete simulated reply. Please try again.");
           }
           updateCase(record.id, (saved) => {
-            if (saved.companyReply) return saved; // Another tab or an earlier run already saved the reply.
+            // One reply per complaint — unless the simulated answer to a sent
+            // clarification is the one due: it deliberately replaces the
+            // case's evaluation with the round-two reply.
+            const pendingClarification = saved.clarification?.sentConfirmed && !saved.clarification.answered;
+            if (saved.companyReply && !pendingClarification) return saved;
             const settled = {
               ...saved,
+              // The answer closes the clarification round: the flag stops
+              // further simulated replies, and the fresh evaluation (no
+              // decision yet) reopens the next-step choice on the read view.
+              ...(pendingClarification && saved.clarification
+                ? { clarification: { ...saved.clarification, answered: true } }
+                : {}),
               companyReply: {
                 replyText: data.replyText,
                 meaning: data.meaning,
@@ -613,7 +668,10 @@ export default function Page() {
           repliesAttentionCount={repliesAttentionCount}
         />
       )}
-      <div className={screen === "auth" ? "" : "pb-[calc(5.75rem+env(safe-area-inset-bottom))] md:ml-56 md:pb-0"}>
+      {/* The conversation manages its own full-height chat viewport (fixed
+          composer, internally scrolling message list), so it neither needs
+          the bottom nav reservation nor the Footer below it. */}
+      <div className={screen === "auth" ? "" : screen === "conversation" ? "md:ml-56" : "pb-[calc(5.75rem+env(safe-area-inset-bottom))] md:ml-56 md:pb-0"}>
         <ConfirmDialog
           open={confirmDialog !== null}
           title={confirmDialog?.kind === "delete" ? "Delete this case?" : "Sign out of Fixora?"}
@@ -654,7 +712,7 @@ export default function Page() {
           <Cases cases={cases} onOpenCase={openSavedCase} onStartCase={startConversation} onGoToReplies={() => setScreen("replies")} onDeleteCase={deleteSavedCase} focusCaseId={focusCaseId} onClearFocus={clearFocusCase} />
         )}
         {screen === "replies" && (
-          <Replies cases={cases} onStartCase={startConversation} onSaveReply={saveReply} onDecision={decideNextAction} onSaveEscalationDraft={saveEscalationDraft} onEscalationSent={confirmEscalationSent} onOutcomeResolved={markResolvedFromOutcome} onGuidanceSaved={saveOutcomeGuidance} />
+          <Replies cases={cases} onStartCase={startConversation} onSaveReply={saveReply} onDecision={decideNextAction} onResolveReply={resolveReplyCase} onSaveClarificationDraft={saveClarificationDraft} onClarificationSent={confirmClarificationSent} onSaveEscalationDraft={saveEscalationDraft} onEscalationSent={confirmEscalationSent} onOutcomeResolved={markResolvedFromOutcome} onGuidanceSaved={saveOutcomeGuidance} />
         )}
         {screen === "learn" && (
           <Learn
@@ -694,7 +752,7 @@ export default function Page() {
             onGoToReplies={() => setScreen("replies")}
           />
         )}
-        {screen !== "auth" && <Footer />}
+        {screen !== "auth" && screen !== "conversation" && <Footer />}
       </div>
     </>
   );

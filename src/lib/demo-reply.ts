@@ -53,10 +53,14 @@ export function toReplyDueAt(sentAtMs: number): number {
   return sentAtMs + REPLY_DELAY_MS;
 }
 
-// Due means: armed, no reply saved yet, and the wait has elapsed. The saved
-// `companyReply` is the one-reply-per-complaint guarantee a refresh relies on.
+// Due means: armed and the wait has elapsed, with no reply saved yet — except
+// for a clarification round: there the FIRST reply is deliberately still on
+// the record, and the pending-clarification flag says its simulated answer
+// may replace the evaluation. That saved reply builds the one-reply-per-
+// round guarantee a refresh relies on.
 export function isReplyDue(record: Case, nowMs: number): boolean {
-  return Boolean(record.replyDueAt && !record.companyReply && nowMs >= record.replyDueAt);
+  const pendingClarification = record.clarification?.sentConfirmed && !record.clarification.answered;
+  return Boolean(record.replyDueAt && nowMs >= record.replyDueAt && (!record.companyReply || pendingClarification));
 }
 
 // The final outcome works the same way as the first reply: the wait for the

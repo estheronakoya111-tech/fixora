@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   cubicBezier,
   motion,
@@ -65,22 +65,10 @@ function TiltTicket() {
       }}
       className="relative mx-auto w-full max-w-md"
     >
-      {/* A blurred ghost card behind it — the cheap way to sell a stack in 3D */}
-      <div
-        aria-hidden
-        className="absolute inset-0 translate-y-7 scale-[1.05] rounded-[1.6rem] bg-white/[0.07] blur-md"
-      />
-      {/* Floor shadow so the card feels physically present */}
-      <motion.div
-        aria-hidden
-        animate={reduce ? undefined : { scale: [1, 0.94, 1], opacity: [0.5, 0.34, 0.5] }}
-        transition={{ duration: 6, repeat: Infinity, ease: "easeInOut" }}
-        className="absolute inset-x-10 bottom-[-1.75rem] h-9 rounded-[100%] bg-black/60 blur-2xl"
-      />
       <motion.div
         whileHover={reduce ? undefined : { rotate: -1.2, scale: 1.03 }}
         transition={{ type: "spring", stiffness: 170, damping: 16 }}
-        className="relative overflow-hidden rounded-[1.6rem] bg-surface p-7 text-foreground shadow-lift sm:p-9"
+        className="relative overflow-hidden rounded-[1.6rem] border border-border bg-surface p-7 text-foreground sm:p-9"
       >
         {/* Shine appears while the card is being tilted */}
         <motion.span
@@ -144,6 +132,17 @@ const easeMove = cubicBezier(0.42, 0, 0.58, 1);
 export default function ClosingCta({ onStart }: { onStart?: () => void }) {
   const ref = useRef<HTMLElement>(null);
   const reduce = useReducedMotion();
+  // Phones skip the whole depth stack: section perspective, scroll-linked
+  // arrival scale, and the 3D watermark all force off-axis rasterization on
+  // mobile, which softens text until a full repaint. Desktop keeps the show.
+  const [lite, setLite] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia("(pointer: coarse), (max-width: 767px)");
+    const update = () => setLite(mq.matches);
+    update();
+    mq.addEventListener("change", update);
+    return () => mq.removeEventListener("change", update);
+  }, []);
 
   // One scroll timeline drives every layer; each moves at its own speed so the
   // section reads as depth, not a flat backdrop.
@@ -173,16 +172,16 @@ export default function ClosingCta({ onStart }: { onStart?: () => void }) {
   return (
     <section
       ref={ref}
-      className="relative isolate overflow-hidden bg-foreground text-white [perspective:1200px]"
+      className={`relative isolate overflow-hidden bg-foreground text-white ${reduce || lite ? "" : "[perspective:1200px]"}`}
     >
       <motion.div
         aria-hidden
         className="absolute inset-0 bg-black"
-        style={{ opacity: reduce ? 0 : arriveDim }}
+        style={{ opacity: reduce || lite ? 0 : arriveDim }}
       />
       <motion.div
-        className="relative will-change-transform"
-        style={reduce ? undefined : { scale: arriveScale, y: arriveY, transformOrigin: "50% 0%" }}
+        className={`relative ${reduce || lite ? "" : "will-change-transform"}`}
+        style={reduce || lite ? undefined : { scale: arriveScale, y: arriveY, transformOrigin: "50% 0%" }}
       >
       <StageDecor glowWarm={40} glowCalm={-40} />
 
@@ -190,7 +189,7 @@ export default function ClosingCta({ onStart }: { onStart?: () => void }) {
       <motion.div
         aria-hidden
         className="pointer-events-none absolute inset-x-0 bottom-0 -z-10 select-none text-center font-heading text-[21vw] font-medium leading-[0.8] tracking-[-0.05em] text-white/[0.04]"
-        style={{ y: watermarkY, rotateX: watermarkTilt, transformPerspective: 900, transformOrigin: "bottom" }}
+        style={reduce || lite ? undefined : { y: watermarkY, rotateX: watermarkTilt, transformPerspective: 900, transformOrigin: "bottom" }}
       >
         fixora
       </motion.div>
@@ -244,11 +243,11 @@ export default function ClosingCta({ onStart }: { onStart?: () => void }) {
 
           {/* Unfinished-story echoes, drifting with scroll like debris in the light */}
           <Reveal delay={0.3}>
-            <motion.div style={{ x: pillDrift }} className="mt-14 hidden flex-wrap items-center gap-3 sm:flex">
+            <motion.div style={lite ? undefined : { x: pillDrift }} className="mt-14 hidden flex-wrap items-center gap-3 sm:flex">
               {["Charged again", "Support went quiet", "Refund owed"].map((word, i) => (
                 <motion.span
                   key={word}
-                  animate={reduce ? undefined : { y: [0, -6 - i * 1.5, 0] }}
+                  animate={reduce || lite ? undefined : { y: [0, -6 - i * 1.5, 0] }}
                   transition={{ duration: 4 + i, repeat: Infinity, ease: "easeInOut", delay: i * 0.5 }}
                   className={`rounded-full border px-4 py-1.5 font-body text-xs font-medium ${
                     i === 0
@@ -269,15 +268,17 @@ export default function ClosingCta({ onStart }: { onStart?: () => void }) {
         <Reveal delay={0.14} y={30}>
           <div className="relative mx-auto max-w-md py-10 md:py-14">
             {/* Far: evidence chip, faint and slow */}
+            {!lite && (
             <DepthChip y={chipFar} duration={6.5} className="-left-14 top-0 z-0 hidden md:block">
-              <div className="rounded-2xl border border-white/10 bg-white/[0.06] px-4 py-3 backdrop-blur-md">
+              <div className={`rounded-2xl border border-white/10 bg-white/[0.06] px-4 py-3 ${lite ? "" : "backdrop-blur-md"}`}>
                 <p className="font-body text-[10px] font-semibold uppercase tracking-[0.16em] text-white/45">Evidence</p>
                 <p className="mt-1 font-body text-xs text-white/75">Receipt-01.pdf attached</p>
               </div>
             </DepthChip>
+            )}
 
             {/* Middle: the clear-case card */}
-            <motion.div style={{ y: ticketY }}>
+            <motion.div style={lite ? undefined : { y: ticketY }}>
               <TiltTicket />
             </motion.div>
 
@@ -308,12 +309,14 @@ export default function ClosingCta({ onStart }: { onStart?: () => void }) {
             </div>
 
             {/* Near: outcome chip, bright and fast */}
+            {!lite && (
             <DepthChip y={chipNear} duration={4.5} className="-right-10 bottom-0 z-20 hidden md:block">
               <div className="rounded-2xl bg-positive px-4 py-3 text-white shadow-[0_14px_35px_-12px_rgb(70_112_90_/.9)]">
                 <p className="font-body text-[10px] font-semibold uppercase tracking-[0.16em] text-white/70">Outcome</p>
                 <p className="mt-1 font-heading text-sm font-semibold">Refund + $24.99</p>
               </div>
             </DepthChip>
+            )}
           </div>
         </Reveal>
       </div>

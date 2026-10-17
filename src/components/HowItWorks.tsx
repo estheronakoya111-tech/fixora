@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   cubicBezier,
   motion,
@@ -60,6 +60,18 @@ function StackCard({
 }) {
   const reduce = useReducedMotion();
   const ref = useRef<HTMLDivElement>(null);
+  // Phones and coarse pointers get the plain stacked cards: a scroll-linked
+  // scale below 1 keeps each card on a composited layer that mobile browsers
+  // resample, and the text stays soft even after the card settles — only a
+  // full reload repaints it crisp. Desktop keeps the full deck recession.
+  const [lite, setLite] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia("(pointer: coarse), (max-width: 767px)");
+    const update = () => setLite(mq.matches);
+    update();
+    mq.addEventListener("change", update);
+    return () => mq.removeEventListener("change", update);
+  }, []);
 
   // Progress across this card's wrapper: pins, then recedes as the next covers.
   const { scrollYProgress } = useScroll({ target: ref, offset: ["start start", "end start"] });
@@ -92,7 +104,7 @@ function StackCard({
       <div className="sticky" style={{ top: `calc(5.5rem + ${i * 14}px)`, paddingBottom: "3rem" }}>
         <motion.div
           style={
-            reduce
+            reduce || lite
               ? undefined
               : {
                   scale,
@@ -103,13 +115,13 @@ function StackCard({
                   transformOrigin: "top center",
                 }
           }
-          className={reduce ? "" : "will-change-transform"}
+          className={reduce || lite ? "" : "will-change-transform"}
         >
           {/* Infinite-deck tease: three unseen card edges peek out beneath the
               card, dimming with depth — they recede together with the card so
               card and deck never fall apart. Seen through the frosted glass,
               they read as more cards stacked behind. */}
-          {!reduce &&
+          {!reduce && !lite &&
             [1, 2, 3].map((d) => (
               <span
                 key={d}
@@ -130,7 +142,7 @@ function StackCard({
               mx.set(((e.clientX - r.left) / r.width) * 100);
               my.set(((e.clientY - r.top) / r.height) * 100);
             }}
-          className={`relative overflow-hidden rounded-[1.75rem] border border-white/10 bg-white/[0.07] p-8 backdrop-blur-xl sm:p-12 ${
+          className={`relative overflow-hidden rounded-[1.75rem] border border-white/10 p-8 sm:p-12 ${lite ? "bg-white/[0.12]" : "bg-white/[0.07] backdrop-blur-xl"} ${
             // Depth shadows (J): each level casts a harder shadow onto the card
             // below it, selling the physical stack without blur filters.
             [
@@ -156,7 +168,7 @@ function StackCard({
             }}
           />
           {/* Cursor-tracked glare, only ever visible on the front card */}
-          {i === total - 1 && glare !== null && !reduce && (
+          {i === total - 1 && glare !== null && !reduce && !lite && (
             <motion.span
               aria-hidden
               className="pointer-events-none absolute inset-0"
@@ -165,7 +177,7 @@ function StackCard({
           )}
           {/* Fog layer: deepens as the card is covered (A). Sits above content
               so covered text dims faster than the card surface reads (G). */}
-          {!reduce && (
+          {!reduce && !lite && (
             <motion.span
               aria-hidden
               style={{ opacity: fog }}
@@ -209,6 +221,17 @@ function StackCard({
 export default function HowItWorks() {
   const sectionRef = useRef<HTMLElement>(null);
   const reduce = useReducedMotion();
+  // The full "Mac scroll" show — section perspective, arrival shadow, glow
+  // parallax — is desktop-only. Phones get the plain section: every one of
+  // those forces off-axis rasterization or per-frame re-blurs on mobile.
+  const [lite, setLite] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia("(pointer: coarse), (max-width: 767px)");
+    const update = () => setLite(mq.matches);
+    update();
+    mq.addEventListener("change", update);
+    return () => mq.removeEventListener("change", update);
+  }, []);
 
   // Arrival — dock-to-fullscreen: while the sheet's top edge travels from the
   // bottom of the viewport to the top, the section starts as a small rounded
@@ -258,7 +281,7 @@ export default function HowItWorks() {
       <motion.div
         className="overflow-hidden bg-foreground text-white"
         style={
-          reduce
+          reduce || lite
             ? undefined
             : {
                 scale: dockScale,
@@ -270,22 +293,25 @@ export default function HowItWorks() {
       >
       {/* No checkerboard here — that stays in the hero and closing CTA */}
       <StageDecor showChecker={false} />
-      {/* Glows that slide in with the section */}
-      <motion.div
-        aria-hidden
-        style={{ y: glowWarm }}
-        className="pointer-events-none absolute -left-32 top-1/3 -z-10 h-80 w-80 rounded-full bg-brand/20 blur-[110px]"
-      />
-      <motion.div
-        aria-hidden
-        style={{ y: glowCalm }}
-        className="pointer-events-none absolute -right-24 bottom-8 -z-10 h-72 w-72 rounded-full bg-positive/15 blur-[100px]"
-      />
+      {/* Glows that slide in with the section */}        {!lite && (
+        <>
+        <motion.div
+          aria-hidden
+          style={{ y: glowWarm }}
+          className="pointer-events-none absolute -left-32 top-1/3 -z-10 h-80 w-80 rounded-full bg-[radial-gradient(closest-side,rgba(232,106,42,0.2),transparent)]"
+        />
+        <motion.div
+          aria-hidden
+          style={{ y: glowCalm }}
+          className="pointer-events-none absolute -right-24 bottom-8 -z-10 h-72 w-72 rounded-full bg-[radial-gradient(closest-side,rgba(95,138,108,0.15),transparent)]"
+        />
+        </>
+        )}
 
       <motion.div
         className="relative mx-auto max-w-7xl px-6 pb-24 pt-20 sm:px-10 sm:pt-28 lg:px-12"
         style={
-          reduce
+          reduce || lite
             ? undefined
             : {
                 scale: dockContent,

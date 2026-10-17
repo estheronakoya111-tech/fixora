@@ -30,6 +30,18 @@ export interface EscalationRecord {
   sentConfirmed?: boolean;
 }
 
+// One clarification round per reply: the record exists once the user picks
+// "Request clarification" and drafts the email. Once sentConfirmed, the wait
+// for the (simulated) answer is armed on replyDueAt; `answered` marks that
+// the answer round was delivered, which reopens the normal decision flow.
+export interface ClarificationRecord {
+  draft: ComplaintDraft; // recipient, subject, body — user-editable before sending
+  draftedAt: number;
+  sentAt?: number;
+  sentConfirmed?: boolean;
+  answered?: boolean;
+}
+
 export type OutcomeVerdict = "resolved" | "unresolved";
 
 // The one simulated final outcome per escalated complaint. Clearly labelled
@@ -88,7 +100,9 @@ export interface ComplaintDraft {
 }
 
 export type ReplyVerdict = "resolved" | "partially-resolved" | "unresolved" | "unclear";
-export type NextActionChoice = "wait" | "clarify" | "escalate";
+// "resolved" is an app-side choice only (the user closes the case) — the
+// model never emits it; its recommendation guard allows wait/clarify/escalate.
+export type NextActionChoice = "wait" | "clarify" | "escalate" | "resolved";
 
 export interface Recommendation {
   action: NextActionChoice;
@@ -124,6 +138,8 @@ export interface Case {
   // One escalation per complaint: the record exists only after escalation
   // drafting started, and once sentConfirmed the action is unavailable.
   escalation?: EscalationRecord;
+  // One clarification round per reply (see ClarificationRecord).
+  clarification?: ClarificationRecord;
   // One simulated final outcome per escalated complaint. The wait is armed
   // exactly once when escalation send is confirmed, cleared once saved.
   finalOutcome?: FinalOutcomeRecord;

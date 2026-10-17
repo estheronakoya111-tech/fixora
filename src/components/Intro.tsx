@@ -49,7 +49,7 @@ export default function Intro({ onContinue }: { onContinue?: (payload: IntroPayl
             text softer — so the grain stays desktop-only. */}
         <div
           aria-hidden
-          className="pointer-events-none absolute inset-0 rounded-[inherit] opacity-[0.07] mix-blend-multiply max-sm:hidden"
+          className="pointer-events-none absolute inset-0 rounded-[inherit] opacity-[0.07] mix-blend-multiply hidden md:block"
           style={{ backgroundImage: GRAIN }}
         />
       </div>

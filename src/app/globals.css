@@ -122,6 +122,14 @@ h6 {
   outline-offset: 2px;
 }
 
+/* Typing fields read their focus from the caret, not a ring: a square
+   brand-colored outline around the message box reads as an artifact.
+   This unlayered rule is what beats Tailwind's outline-none there. */
+textarea:focus-visible,
+main textarea:focus {
+  outline: none;
+}
+
 .auth-underline {
   position: relative;
   display: block;

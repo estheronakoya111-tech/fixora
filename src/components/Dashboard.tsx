@@ -118,7 +118,8 @@ export default function Dashboard({
   const overviewStatuses: CaseStatus[] = [...NEEDS, "waiting-for-response", "response-reviewed"];
   const statusCounts = (Object.keys(STATUS) as CaseStatus[])
     .filter((s) => s !== "escalated" && !overviewStatuses.includes(s))
-    .map((s) => ({ s, n: cases.filter((c) => c.status === s).length }));
+    .map((s) => ({ s, n: cases.filter((c) => c.status === s).length }))
+    .filter(({ n }) => n > 0);
 
   const searchMatches = useMemo<SearchMatch[]>(() => {
     const q = query.trim().toLowerCase();
@@ -211,7 +212,7 @@ export default function Dashboard({
             <ComplaintChart cases={cases} onStartCase={onStartCase} />
           </motion.section>
 
-          <Reveal className="mt-4 grid gap-4 lg:grid-cols-[3fr_2fr]">
+          <Reveal className="mt-4 grid items-start gap-4 lg:grid-cols-[3fr_2fr]">
             <motion.section {...rise(4)} aria-labelledby="recent" className="flex flex-col overflow-hidden rounded-2xl border border-border/70 bg-surface shadow-card">
               <h2 id="recent" className="px-5 pb-2 pt-5 font-heading text-lg font-semibold">Recent cases</h2>
               <ul className="flex-1">
@@ -240,17 +241,24 @@ export default function Dashboard({
 
             <motion.section {...rise(5)} aria-labelledby="bystatus" className="flex flex-col rounded-2xl border border-border/70 bg-surface p-5 shadow-card">
               <h2 id="bystatus" className="font-heading text-lg font-semibold">Cases by status</h2>
-              <ul className="mt-4 grid flex-1 auto-rows-fr grid-cols-2 gap-2.5">
+              {/* Only statuses that actually exist, at natural tile height —
+                  the card must never stretch into a tall wall of zeros next
+                  to the recent-cases list. */}
+              {statusCounts.length ? (
+              <ul className="mt-4 grid grid-cols-2 gap-2.5">
                 {statusCounts.map(({ s, n }) => (
-                  <li key={s} className="flex flex-col justify-between rounded-xl bg-surface-muted p-3">
+                  <li key={s} className="rounded-xl bg-surface-muted p-3">
                     <span className="flex items-start gap-1.5 text-xs leading-tight text-muted">
                       <span aria-hidden className="mt-1 h-2 w-2 shrink-0 rounded-full" style={{ background: STATUS[s].bar }} />
                       {STATUS[s].label}
                     </span>
-                    <span className={`mt-2 font-heading text-2xl font-semibold leading-none ${n === 0 ? "text-subtle" : ""}`}>{n}</span>
+                    <span className="mt-2 font-heading text-2xl font-semibold leading-none">{n}</span>
                   </li>
                 ))}
               </ul>
+              ) : (
+              <p className="mt-4 text-sm text-muted">Nothing in progress — a case shows up here once it moves along.</p>
+              )}
             </motion.section>
           </Reveal>
         </main>

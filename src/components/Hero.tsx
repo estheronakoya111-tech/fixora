@@ -1,13 +1,29 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { motion, useReducedMotion, useTransform, type MotionValue } from "framer-motion";
 import { FixoraLogo } from "@/components/logo/FixoraLogo";
 import FixoraBackground from "@/components/ui/FixoraBackground";
 
 const ease = [0.22, 1, 0.36, 1] as const;
 
-function ActionButton({ onClick, children, compact = false }: { onClick: () => void; children: React.ReactNode; compact?: boolean }) {
+function ActionButton({ onClick, children, compact = false, bare = false }: { onClick: () => void; children: React.ReactNode; compact?: boolean; bare?: boolean }) {
   const reduce = useReducedMotion();
+  // Bare variant: plain colored text, no border, no padding, no chrome —
+  // just a color shift on hover (used for the nav's Sign up link).
+  if (bare) {
+    return (
+      <motion.button
+        type="button"
+        onClick={onClick}
+        whileHover={reduce ? undefined : { y: -1 }}
+        whileTap={reduce ? undefined : { scale: 0.97 }}
+        className="inline-flex shrink-0 items-center font-heading font-semibold leading-[1.2] text-brand-strong transition-colors duration-300 hover:text-brand"
+      >
+        {children}
+      </motion.button>
+    );
+  }
   return (
     <motion.button
       type="button"
@@ -31,19 +47,31 @@ function ActionButton({ onClick, children, compact = false }: { onClick: () => v
  */
 export default function Hero({ onStart, progress }: { onStart: () => void; progress: MotionValue<number> }) {
   const reduce = useReducedMotion();
+  // Phones skip the scroll-linked cover scale: a scale below 1 keeps the whole
+  // hero on a composited layer that mobile browsers resample, and every line
+  // of its text stays soft until a reload repaints it. Desktop keeps the
+  // recede as the next screen covers it.
+  const [lite, setLite] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia("(pointer: coarse), (max-width: 767px)");
+    const update = () => setLite(mq.matches);
+    update();
+    mq.addEventListener("change", update);
+    return () => mq.removeEventListener("change", update);
+  }, []);
   const scale = useTransform(progress, [0, 1], [1, 0.94]);
   const dim = useTransform(progress, [0, 1], [0, 0.4]);
   const hint = useTransform(progress, [0, 0.06, 0.2], [1, 0, 0]); // gone as the cover starts
 
   return (
     <motion.div
-      className="sticky top-0 z-0 h-dvh origin-top overflow-hidden will-change-transform lg:overflow-visible"
-      style={reduce ? undefined : { scale }}
+      className={`sticky top-0 z-0 h-dvh origin-top overflow-hidden lg:overflow-visible ${reduce || lite ? "" : "will-change-transform"}`}
+      style={reduce || lite ? undefined : { scale }}
     >
       <FixoraBackground className="h-dvh text-foreground lg:overflow-visible">
         <nav className="mx-auto flex w-full max-w-7xl items-center justify-between px-6 py-6 lg:px-12" aria-label="Main navigation">
           <FixoraLogo size="md" showWordmark />
-          <ActionButton onClick={onStart} compact>Sign up</ActionButton>
+          <ActionButton onClick={onStart} bare>Sign up</ActionButton>
         </nav>
 
         <section className="mx-auto grid min-h-[calc(100dvh-160px)] w-full max-w-7xl items-center gap-16 px-6 pb-12 pt-4 lg:grid-cols-[minmax(0,.95fr)_minmax(34rem,1.05fr)] lg:px-12 lg:pb-16 lg:pt-0">
@@ -68,7 +96,7 @@ export default function Hero({ onStart, progress }: { onStart: () => void; progr
 
           <motion.div initial={reduce ? false : { opacity: 0, x: 42, rotate: 3 }} animate={{ opacity: 1, x: 0, rotate: 0 }} transition={{ delay: 0.16, duration: 0.95, ease }} className="relative mx-auto w-full max-w-2xl lg:translate-y-4">
             <div className="relative min-h-[25rem] sm:min-h-[29rem]">
-              <motion.div animate={reduce ? undefined : { y: [0, -9, 0], rotate: [3, 1, 3] }} transition={{ duration: 8, repeat: Infinity, ease: "easeInOut" }} className="absolute left-0 top-10 w-[76%] rounded-[1.75rem] border border-border/80 bg-surface/90 p-6 shadow-card backdrop-blur-xl sm:p-8"><div className="flex items-center justify-between text-[10px] font-semibold uppercase tracking-[0.18em] text-subtle"><span>01 / the messy version</span><span className="text-brand-strong">incoming</span></div><p className="mt-8 max-w-sm font-body text-xl leading-8 text-foreground/80 sm:text-2xl">“I don&apos;t know why they charged me again. I already cancelled and support keeps sending the same reply.”</p><div className="mt-10 flex flex-wrap gap-2"><span className="rounded-full bg-brand-soft px-3 py-1.5 text-xs font-medium text-brand-700">unexpected charge</span><span className="rounded-full bg-surface-sunken px-3 py-1.5 text-xs font-medium text-muted">subscription</span></div></motion.div>
+              <motion.div animate={reduce || lite ? undefined : { y: [0, -9, 0], rotate: [3, 1, 3] }} transition={{ duration: 8, repeat: Infinity, ease: "easeInOut" }} className={`absolute left-0 top-10 w-[76%] rounded-[1.75rem] border border-border/80 bg-surface/90 p-6 shadow-card sm:p-8 ${lite ? "" : "backdrop-blur-xl"}`}><div className="flex items-center justify-between text-[10px] font-semibold uppercase tracking-[0.18em] text-subtle"><span>01 / the messy version</span><span className="text-brand-strong">incoming</span></div><p className="mt-8 max-w-sm font-body text-xl leading-8 text-foreground/80 sm:text-2xl">“I don&apos;t know why they charged me again. I already cancelled and support keeps sending the same reply.”</p><div className="mt-10 flex flex-wrap gap-2"><span className="rounded-full bg-brand-soft px-3 py-1.5 text-xs font-medium text-brand-700">unexpected charge</span><span className="rounded-full bg-surface-sunken px-3 py-1.5 text-xs font-medium text-muted">subscription</span></div></motion.div>
               <motion.div animate={reduce ? undefined : { y: [0, 10, 0], rotate: [-4, -2, -4] }} transition={{ duration: 9, repeat: Infinity, ease: "easeInOut", delay: 0.4 }} className="absolute bottom-2 right-0 w-[76%] rounded-[1.75rem] bg-foreground p-6 text-white shadow-lift sm:p-8"><div className="flex items-center justify-between text-[10px] font-semibold uppercase tracking-[0.18em] text-white/45"><span>02 / the clear case</span><span className="text-positive">ready</span></div><div className="mt-7 space-y-5"><div><p className="text-[10px] uppercase tracking-[0.16em] text-white/45">Issue</p><p className="mt-1 font-heading text-lg font-semibold">Charged after cancellation</p></div><div className="grid grid-cols-2 gap-4"><div><p className="text-[10px] uppercase tracking-[0.16em] text-white/45">Amount</p><p className="mt-1 text-sm">$24.99</p></div><div><p className="text-[10px] uppercase tracking-[0.16em] text-white/45">Next move</p><p className="mt-1 text-sm text-positive">Review complaint</p></div></div></div><div className="mt-8 flex items-center justify-between border-t border-white/15 pt-4 text-xs text-white/55"><span>Fixora organized the story</span><span className="text-lg text-positive">↗</span></div></motion.div>
               <motion.div initial={reduce ? false : { scale: 0.7, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ delay: 0.75, duration: 0.55, ease }} className="absolute right-[8%] top-1/2 z-20 flex h-16 w-16 -translate-y-1/2 items-center justify-center rounded-full border-8 border-positive-soft bg-positive text-2xl text-white shadow-[0_10px_30px_-8px_rgb(95_138_108_/.8)]" aria-hidden>→</motion.div>
             </div>
@@ -78,7 +106,8 @@ export default function Hero({ onStart, progress }: { onStart: () => void; progr
         <div className="mx-auto flex max-w-7xl items-center gap-4 px-6 pb-5 font-body text-[10px] font-semibold uppercase tracking-[0.2em] text-subtle lg:px-12"><span className="h-px flex-1 bg-positive/25" /><span>From confusion to a clear next step</span><span className="h-px flex-1 bg-positive/25" /></div>
       </FixoraBackground>
 
-      {/* Scroll hint: fades out as soon as the person starts scrolling */}
+      {/* Scroll hint: desktop-only — phones get no scroll-linked layers */}
+      {!lite && (
       <motion.div
         aria-hidden
         className="pointer-events-none absolute bottom-14 left-1/2 hidden -translate-x-1/2 flex-col items-center gap-2 font-body text-[10px] font-semibold uppercase tracking-[0.2em] text-subtle sm:flex"
@@ -93,6 +122,7 @@ export default function Hero({ onStart, progress }: { onStart: () => void; progr
           />
         </span>
       </motion.div>
+      )}
     </motion.div>
   );
 }
