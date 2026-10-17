@@ -362,13 +362,18 @@ export default function Conversation({ initialStory, initialMessages, initialDet
       }
     };
     rec.onerror = (e) => {
+      // Silence is treated as "done": restart-on-silence reopens the mic
+      // back-to-back, which plays a start/stop beep per cycle. Closing the
+      // session instead keeps dictation quiet — the mic button returns to
+      // its idle state and the user taps it again when they want more.
+      if (e.error === "no-speech") {
+        wantListen.current = false;
+        setListening(false);
+        return;
+      }
       // Real failures must clear the hands-off continuation flag, otherwise
       // onend immediately restarts the failing session and the mic open/close
       // sound loops like a glitch until the user gives up.
-      if (e.error === "no-speech") {
-        // Silence — normal in hands-free mode; onend will re-listen.
-        return;
-      }
       wantListen.current = false;
       setListening(false);
       if (e.error === "not-allowed") {
